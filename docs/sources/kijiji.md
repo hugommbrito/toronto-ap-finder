@@ -23,6 +23,12 @@ Category 37 (Apartments & Condos for Rent) in City of Toronto (location 1700273)
 
 Fetched from `https://www.kijiji.ca/robots.txt`. No `Crawl-delay`, no `Sitemap`.
 
+**Re-checked automatically.** These rules were read by hand once; `pnpm probe` now re-reads
+`robots.txt` weekly and evaluates it against the exact URL the adapter builds, recording the verdict
+in `source_policy`. A move away from `green` alerts on Telegram. The conclusions below remain the
+enforcement — the URL builders can only emit permitted forms, and tests assert it — but they are no
+longer the only thing standing between a rule change and us not noticing.
+
 **Allowed** (what the adapter uses):
 
 - Category/location browse paths: `/b-apartments-condos/city-of-toronto/c37l1700273`

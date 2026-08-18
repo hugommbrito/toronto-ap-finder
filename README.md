@@ -16,8 +16,9 @@ pnpm install
 docker compose up -d          # PostGIS on :5433
 pnpm db:migrate
 pnpm seed                     # ~1,090 daycares, 139 stations, 1 profile
-pnpm test                     # 203 unit tests
+pnpm test                     # 314 tests (8 need a database, skipped without one)
 pnpm verify                   # acceptance checks against the real database
+pnpm probe                    # measures what each source does when we knock
 pnpm cycle:dry                # one full cycle, scores everything, sends nothing
 pnpm cycle                    # one full cycle, sends what clears minScore
 pnpm cycle:stored             # re-score the corpus already collected, no network at all
@@ -176,7 +177,7 @@ layout, neighbourhood — held constant on every axis but one.
 | `src/geo/` | Haversine, address normalisation, fingerprinting, city matching |
 | `src/verification/` | Model-read listing verdicts and the rules for acting on them |
 | `src/seed/` | CKAN daycares, Overpass transit, the `sister` profile |
-| `src/db/schema/` | 10 tables |
+| `src/db/schema/` | 13 tables |
 | `test/fixtures/` | Real captured payloads, so parser tests run offline |
 | `src/sources/` | `source.interface.ts`, the Kijiji parser/source, the rate limiter |
 | `src/pipeline/` | Triage → hydration → score → notify orchestration |
@@ -232,6 +233,9 @@ between requests (12 s for Kijiji — measured, not guessed), and an immediate p
 429/403 rather than a retry. No CAPTCHA or login is ever worked around, and
 collected data is not redistributed.
 
+`robots.txt` used to be checked only by hand, once, per source. It is now re-read weekly and
+evaluated against the exact URL the adapter requests — see **Source policy** below.
+
 ## The pipeline
 
 Two stages, because the search page truncates the ad body at ~200 characters and Kijiji
@@ -270,10 +274,16 @@ re-checking listings it has already surfaced. That is about 25 requests per cycl
 while remaining perfectly available, so absence proves nothing; only the ad's own `status`
 does. The re-check pass asks, least-recently-confirmed first.
 
-**A paused source alerts once.** Empty cycles look exactly like a quiet market, which is the
-failure most likely to go unnoticed for a week, so a 429 sends a Telegram message and shows
+**A paused source alerts once, per source.** Empty cycles look exactly like a quiet market, which
+is the failure most likely to go unnoticed for a week, so a 429 sends a Telegram message and shows
 up as `degraded` on `/health`. The gap between cycles is the backoff: after 20 minutes the
-circuit resets itself.
+circuit resets itself. Once per pause and not once per cycle — but a second source going down
+during the first one's outage is news, and is still said.
+
+**And if no cycle finishes at all, that is also said.** A watchdog checks every fifteen minutes and
+raises a Telegram alert when nothing has completed in ninety, then says so again when cycles
+resume. It stays quiet when `CYCLE_ENABLED=false`, where silence is the operator's own decision,
+and when no cycle has ever run, because a fresh install is not an outage.
 
 ## Deploying to Railway
 
@@ -300,6 +310,99 @@ those queries back.
 Run one replica. Migrations run at boot without an advisory lock, so concurrent instances
 would race.
 
+## Migrations
+
+**Migrations are hand-written, and the journal is the list.** `migrate()` reads
+`src/db/migrations/meta/_journal.json` and runs what it names — a `.sql` file the journal does not
+mention simply never executes.
+
+That failed once, silently. `0006_source_buildings.sql` was committed without its journal entry,
+so `source_buildings` was missing from every database the migrator created; the dev database only
+had the table because it was created by hand. A fresh deployment would have taken the Zumper cycle
+down on its first upsert. `src/db/migrations.spec.ts` now fails when a `.sql` file has no entry,
+when an entry has no file, when `idx` or `when` go out of order, and when a table declared in
+`src/db/schema/` never appears in any migration.
+
+`drizzle-kit generate` is **not** trustworthy in this repo: `meta/` holds snapshots for `0000` and
+`0001` only, so it would diff against a five-migration-old state. The script is named
+`db:generate:unsafe` to say so. Use it as a draft generator if you like, then rewrite the output in
+the house style before it lands:
+
+- `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, so re-running is a no-op
+- a comment block at the top saying *why*, not what
+- a `DO $$` guard for anything that may be absent on the target — `0001_postgis.sql` is the model,
+  because Railway's default Postgres has no PostGIS
+- the data change travels with the schema change when a column needs backfilling; `0002` and `0005`
+  both migrate `profiles` jsonb alongside the DDL
+
+## Source policy
+
+**Measure before writing an adapter.** A source's level of protection changes without notice, and a
+scraping vendor's blog is marketing rather than a technical reference. `pnpm probe` makes two
+requests per source — `robots.txt`, then the page the adapter actually fetches — and records a
+verdict in `source_policy`:
+
+| Verdict | Meaning | What it licenses |
+|---|---|---|
+| `green` | 200, and a known listing marker matched the raw HTML | an adapter of `undici` plus a parser |
+| `yellow` | 200, but the content is not in the initial HTML | look for a published JSON endpoint **before** anyone reaches for a headless browser |
+| `red` | refused, challenged, or disallowed by `robots.txt` | **nothing. The source is closed.** |
+
+`red` is not an invitation to investigate a bypass. Keeping a workaround alive is continuous work
+against a target that changes weekly, on a project whose useful life ends when a lease is signed.
+
+Two design decisions worth knowing:
+
+- **The primary key is `(source_id, probed_from)`**, not the source alone. Anti-bot systems keep
+  reputation by IP range, so "will this source talk to us?" is a fact about the pair. Keyed on the
+  source alone, a probe run from a laptop would overwrite the deployment's verdict with a friendlier
+  one — inverting the one fact the table exists to record. A local run shows up as
+  `local:<hostname>`, the deployment as `railway:<env>:<region>`.
+- **Verdicts are advisory.** Nothing in the pipeline reads one to decide whether to fetch. A
+  transient 503 must not be able to silence the monitor for a week; `CYCLE_ENABLED=false` is still
+  the switch, and a `red` on a source already running is an operator's decision. They surface on
+  `/health` and, when a verdict *degrades*, once on Telegram.
+
+It runs weekly (Mondays 04:17, off the rhythm of the collection cycles); `PROBE_ENABLED=false`
+turns it off. Cookie and header **names** are stored, never values — a kept `cf_clearance` would be
+a retained challenge token, which is the first step of working around a challenge rather than
+respecting it.
+
+Rentals.ca is deliberately not probed: it is a documented refusal, and re-requesting a site that
+has already answered is not a measurement worth taking.
+
+## Operations
+
+`/health` answers "is this process up". It cannot answer "has the work been getting done", and
+those are different failures: a monitor that is perfectly healthy and has collected nothing for two
+days looks fine to a liveness check and is completely broken.
+
+`GET /operations` answers the second one, over a window (`?hours=24`, clamped to 30 days):
+
+```bash
+curl -H "Authorization: Bearer $OPERATIONS_TOKEN" \
+     "https://<deployment>/operations?hours=48"
+```
+
+- **per source** — cycles run, how many failed, paused right now and why, when it last succeeded,
+  the last error, and the current `source_policy` verdict. Keyed on the registry rather than on the
+  runs, so a source that did not run *at all* is visible instead of absent.
+- **totals** — seen, new, hydrated, scored, notified, delisted, summed across the window.
+- **the funnel** — rejection reasons aggregated from `rejection_log`, which is the instrument that
+  showed a 900 m transit limit was killing 41% of everything.
+- **runs** — every cycle with its duration, outcome and errors.
+
+It needs `OPERATIONS_TOKEN`. **Unset closes the route rather than opening it** (`503`): the report
+carries addresses, prices and failure detail, and this service is meant to be private.
+
+The history lives in `cycle_runs`, one row per cycle per source, so it survives the redeploys that
+used to erase it — which happened on every push, and again on each of Railway's five restart
+attempts, exactly when something had gone wrong enough to cause one.
+
+This route is also the trip-wire for the collector contingency: moving the fetcher onto a
+residential connection is worth doing when, and only when, collection from the cloud starts
+failing. This is where that becomes visible.
+
 ## Sources
 
 | Source | Status | Granularity |
@@ -307,10 +410,22 @@ would race.
 | Kijiji | live | one advertisement, one unit |
 | Zumper | live | search returns **buildings**; one request opens all their floorplans |
 | Rentals.ca | **refused** | `robots.txt` itself sits behind a Cloudflare challenge — see [docs/sources/rentals-ca.md](docs/sources/rentals-ca.md) |
+| CAPREIT | investigated, **green** | 569 properties in one sitemap with `<lastmod>`, 44 in the 416; building pages server-render JSON-LD — see [docs/sources/pm_capreit.md](docs/sources/pm_capreit.md) |
+| Greenwin | **closed** | site renders client-side from `newapi.lws1.com`, whose `robots.txt` is `Disallow: /` — see [docs/sources/pm_greenwin.md](docs/sources/pm_greenwin.md) |
+| Hazelview | **undetermined** | its residential site is CloudFront geo-blocked from Brazil; unmeasured, not refused — see [docs/sources/pm_hazelview.md](docs/sources/pm_hazelview.md) |
 
 Zumper runs on its own cron, offset ten minutes from the Kijiji one. Its budget counts
 buildings rather than listings: four opened buildings produced 174 units in one measured run.
 Set `BUILDING_CYCLE_ENABLED=false` to turn it off without touching the Kijiji cycle.
+
+**A building becomes due again in three ways**: it has never been opened, its source says it
+changed, or it has aged past that source's `refreshEveryMs`. The third exists because the first
+two are not enough. A source that publishes no last-modified — which is every property manager —
+would otherwise stay permanently due, and since Postgres sorts nulls last, the buildings already
+opened would outrank the ones never opened and the rest of the inventory would never be reached,
+while the log printed a healthy count of buildings opened each cycle. The same rule covers the
+opposite failure: a source that stops publishing the field freezes silently, so seven days is the
+longest Zumper may go unchecked regardless.
 
 Cross-source deduplication is proven by test but not yet by production data: the two sources
 share no buildings at all, and the nearest pair of listings is 518 m apart. Details and

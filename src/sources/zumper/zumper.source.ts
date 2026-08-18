@@ -23,6 +23,17 @@ export class ZumperSource implements BuildingListingSource {
    */
   readonly minIntervalMs = 6_000;
 
+  /**
+   * Seven days, as a net rather than as the mechanism.
+   *
+   * Zumper publishes `modified_on`, so the watermark does essentially all the work and this
+   * almost never fires. It exists for the failure the watermark cannot see: if Zumper ever stops
+   * filling the field, every building silently freezes at whatever we last read, and nothing
+   * about that looks wrong from outside. Seven days turns "stale forever, in silence" into "at
+   * most a week behind" for about 16 requests a day across the whole city.
+   */
+  readonly refreshEveryMs = 7 * 24 * 60 * 60 * 1_000;
+
   private readonly limiter: RateLimiter;
 
   constructor(private readonly contactEmail?: string) {

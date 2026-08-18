@@ -22,6 +22,19 @@ const envSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
     z.string().email().optional(),
   ),
+  /**
+   * Overrides the label the probe records as its vantage point. Normally derived — Railway's own
+   * environment and region variables, or the hostname — because a verdict is a fact about
+   * (source, where we asked from) and a wrong label would let a laptop's answer stand in for the
+   * deployment's.
+   */
+  PROBE_HOST_LABEL: optionalString,
+  /**
+   * Bearer token for GET /operations. Unset closes the route rather than opening it: the report
+   * lists addresses, prices and failure detail, and the README's terms are personal use with no
+   * public exposure of the service.
+   */
+  OPERATIONS_TOKEN: optionalString,
   TELEGRAM_BOT_TOKEN: optionalString,
   /**
    * Comma-separated Telegram chat ids, e.g. "100000001,100000002". Everyone listed gets

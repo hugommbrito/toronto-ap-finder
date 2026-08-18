@@ -6,6 +6,12 @@ Checked 2026-08-18. Implemented.
 
 Readable, no challenge, HTTP 200. Our adapter matches `user-agent: *`.
 
+**Re-checked automatically.** These rules were read by hand once; `pnpm probe` now re-reads
+`robots.txt` weekly and evaluates it against the exact URL the adapter builds, recording the verdict
+in `source_policy`. A move away from `green` alerts on Telegram. The conclusions below remain the
+enforcement — the URL builders can only emit permitted forms, and tests assert it — but they are no
+longer the only thing standing between a rule change and us not noticing.
+
 **`crawl-delay` does not bind us.** It appears twice, under `ImagesiftBot` and `ias-va`
 only; the `*` group declares none. We pace ourselves anyway — see below.
 
@@ -122,6 +128,13 @@ What makes it affordable is `modified_on`, which triage gives away for free: a b
 `modified_on` has not advanced since we last opened it cannot contain a new floorplan. Steady
 state is a handful of requests; only the first backfill is expensive, and it is spread across
 cycles by the hydration budget.
+
+**A seven-day floor sits under the watermark**, as a net rather than as the mechanism. The
+watermark can only report a change it is told about, so if Zumper ever stops filling `modified_on`
+every building freezes at whatever we last read and nothing about that looks wrong from outside —
+the cycle keeps succeeding, and simply finds nothing. `refreshEveryMs` makes a building due again
+after a week however quiet the source has been, which turns "stale forever, in silence" into "at
+most a week behind" for roughly 16 requests a day across all 229 buildings.
 
 ## Inventory
 

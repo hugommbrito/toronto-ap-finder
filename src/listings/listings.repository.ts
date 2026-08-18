@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '@/db/client';
 import type { BuildingEntry } from '@/sources/source.interface';
 import {
+  cycleRuns,
+  type CycleRunRow,
   sourceBuildings,
   type SourceBuildingRow,
   listingVerifications,
@@ -254,42 +256,68 @@ export class ListingsRepository {
   }
 
   /**
-   * Buildings worth opening: never opened, or changed since we last opened them.
+   * Buildings worth opening, in one place because two queries ask the question.
    *
-   * Never-opened buildings come first, then the ones that changed longest ago, so a backfill
-   * drains steadily instead of the same few buildings being refetched.
+   * Three ways a building becomes due, and the third one is why this exists:
+   *
+   * 1. **Never opened.** Keyed on `last_expanded_at`, which is the column that actually records
+   *    having opened it. It used to be keyed on `expanded_modified_on`, and that was the bug:
+   *    `markBuildingExpanded` copies the source's `modified_on` into it, so for a source that
+   *    publishes no last-modified — every property manager — opening a building wrote `NULL` and
+   *    left it as due as it was before. Worse than a treadmill: `ORDER BY last_expanded_at` puts
+   *    nulls last in Postgres, so already-opened buildings outranked never-opened ones and the
+   *    rest of the inventory would never be reached, while the log printed a healthy "12 opened".
+   * 2. **The source says it changed.** The cheap path, and the only one Zumper normally uses.
+   * 3. **It has aged out.** Without a watermark there is nothing to compare, so time is the only
+   *    signal left. This also covers the opposite failure: a source that *stops* filling
+   *    `modified_on` would otherwise freeze its inventory permanently and silently.
    */
-  async findBuildingsDueForExpansion(source: string, limit: number): Promise<SourceBuildingRow[]> {
+  private dueForExpansion(source: string, refreshAfterMs: number) {
+    return and(
+      eq(sourceBuildings.source, source),
+      or(
+        isNull(sourceBuildings.lastExpandedAt),
+        and(
+          isNotNull(sourceBuildings.modifiedOn),
+          sql`${sourceBuildings.modifiedOn} > ${sourceBuildings.expandedModifiedOn}`,
+        ),
+        sql`${sourceBuildings.lastExpandedAt} < now() - ${sql.raw(`interval '${Math.round(refreshAfterMs / 1000)} seconds'`)}`,
+      ),
+    );
+  }
+
+  /**
+   * Never-opened first, then longest since we last looked, so a backfill drains steadily.
+   *
+   * `NULLS FIRST` is load-bearing rather than tidy: a never-opened building has a null
+   * `last_expanded_at`, and Postgres sorts nulls last by default, which would put every building
+   * we have already seen ahead of every building we have not.
+   */
+  async findBuildingsDueForExpansion(
+    source: string,
+    limit: number,
+    refreshAfterMs: number,
+  ): Promise<SourceBuildingRow[]> {
     return this.db
       .select()
       .from(sourceBuildings)
-      .where(
-        and(
-          eq(sourceBuildings.source, source),
-          or(
-            isNull(sourceBuildings.expandedModifiedOn),
-            sql`${sourceBuildings.modifiedOn} > ${sourceBuildings.expandedModifiedOn}`,
-          ),
-        ),
-      )
-      .orderBy(sql`${sourceBuildings.expandedModifiedOn} NULLS FIRST`, sourceBuildings.lastExpandedAt)
+      .where(this.dueForExpansion(source, refreshAfterMs))
+      .orderBy(sql`${sourceBuildings.lastExpandedAt} ASC NULLS FIRST`)
       .limit(limit);
   }
 
-  /** How many buildings are waiting. Counted, not inferred from the page of work taken. */
-  async countBuildingsDueForExpansion(source: string): Promise<number> {
+  /**
+   * How many buildings are waiting. Counted, not inferred from the page of work taken.
+   *
+   * Shares `dueForExpansion` with the query above deliberately. The two conditions used to be
+   * written out twice, and this is the number the cycle reports as the backlog — if they drifted,
+   * the report would quietly start lying about how much work is left.
+   */
+  async countBuildingsDueForExpansion(source: string, refreshAfterMs: number): Promise<number> {
     const [row] = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(sourceBuildings)
-      .where(
-        and(
-          eq(sourceBuildings.source, source),
-          or(
-            isNull(sourceBuildings.expandedModifiedOn),
-            sql`${sourceBuildings.modifiedOn} > ${sourceBuildings.expandedModifiedOn}`,
-          ),
-        ),
-      );
+      .where(this.dueForExpansion(source, refreshAfterMs));
     return row?.n ?? 0;
   }
 
@@ -299,6 +327,67 @@ export class ListingsRepository {
       .update(sourceBuildings)
       .set({ expandedModifiedOn: modifiedOn, lastExpandedAt: new Date(), lastUnitCount: unitCount })
       .where(eq(sourceBuildings.id, id));
+  }
+
+
+  // --- operational history -----------------------------------------------------------
+  //
+  // The pipeline used to keep only the last report, in memory, in one slot shared by two cycles.
+  // These are what make "which runs worked, and which failed" answerable after a redeploy.
+
+  async recordCycleRun(row: typeof cycleRuns.$inferInsert): Promise<void> {
+    await this.db.insert(cycleRuns).values(row);
+  }
+
+  /** Runs in a window, newest first. Capped, because this feeds an HTTP response. */
+  async findCycleRuns(since: Date, limit = 500): Promise<CycleRunRow[]> {
+    return this.db
+      .select()
+      .from(cycleRuns)
+      .where(gte(cycleRuns.startedAt, since))
+      .orderBy(desc(cycleRuns.startedAt))
+      .limit(limit);
+  }
+
+  /**
+   * When a cycle last finished at all — the input to the watchdog.
+   *
+   * Ordered on the column rather than `max()` in raw SQL, deliberately. `sql<Date>` is an
+   * assertion and not a conversion: the driver hands back a string for a computed timestamp, and
+   * the annotation would make TypeScript vouch for a Date that never arrives. Selecting the
+   * column lets drizzle map the type it declared.
+   */
+  async lastCycleFinishedAt(): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ at: cycleRuns.finishedAt })
+      .from(cycleRuns)
+      .orderBy(desc(cycleRuns.finishedAt))
+      .limit(1);
+    return row?.at ?? null;
+  }
+
+  /**
+   * The funnel, aggregated over a window.
+   *
+   * This is the instrument: it is what showed a 900 m hard transit limit was killing 41% of
+   * everything. Counted in SQL rather than in memory because the table only grows.
+   */
+  async rejectionTally(since: Date): Promise<Array<{ reason: string; count: number }>> {
+    return this.db
+      .select({ reason: rejectionLog.reason, count: sql<number>`count(*)::int` })
+      .from(rejectionLog)
+      .where(gte(rejectionLog.createdAt, since))
+      .groupBy(rejectionLog.reason)
+      .orderBy(sql`count(*) desc`);
+  }
+
+  /** Listings still waiting on a human decision. */
+  async openReviewCount(): Promise<number> {
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(needsReview)
+      .where(isNull(needsReview.resolvedAt));
+    return row?.n ?? 0;
   }
 
   /** Upserts, so a retry after a failed call replaces the recorded error with the verdict. */

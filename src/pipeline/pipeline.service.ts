@@ -13,12 +13,11 @@ import { ProfilesService } from '@/profiles/profiles.service';
 import { applyHardFilters, type HardFilterResult } from '@/scoring/hard-filters';
 import { scoreListing } from '@/scoring/scorer';
 import { reachableLines, type GeoIndex } from '@/scoring/context';
-import { KijijiSource } from '@/sources/kijiji/kijiji.source';
-import { ZumperSource } from '@/sources/zumper/zumper.source';
+import { SourceRegistry, newlyPaused } from '@/sources/source.registry';
 import { SourcePausedError } from '@/sources/rate-limiter';
 import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/verification/listing-verifier';
 import { applyVerdict } from '@/verification/apply-verdict';
-import type { ListingSource } from '@/sources/source.interface';
+import type { BuildingListingSource, SourceHealth, UnitListingSource } from '@/sources/source.interface';
 
 export interface CycleOptions {
   /** Search-result pages to walk. 5 pages is 200 ads, which comfortably covers 20 minutes. */
@@ -92,17 +91,14 @@ export class PipelineService {
   private readonly logger = new Logger(PipelineService.name);
 
   /**
-   * One source for the life of the process, not one per cycle.
+   * One slot per kind of cycle, not one for both.
    *
-   * The rate limiter's circuit is the point: if Kijiji refused us at 10:00, a fresh instance
-   * at 10:20 would have forgotten and gone straight back in. Keeping it means the pause is
-   * real, and the gap between cycles becomes the backoff.
+   * A single field meant the building cycle at :10 overwrote the listings report from :00, so
+   * /health's numbers described whichever ran last and nobody could tell.
    */
-  private readonly source = new KijijiSource(loadEnv().SCRAPER_CONTACT_EMAIL);
-  private readonly buildingSource = new ZumperSource(loadEnv().SCRAPER_CONTACT_EMAIL);
-  private lastCycle: { finishedAt: Date; report: CycleReport } | null = null;
-  /** Guards against alerting on every cycle for the same outage. */
-  private alerted = false;
+  private readonly lastCycles = new Map<'unit' | 'building', { finishedAt: Date; report: CycleReport }>();
+  /** Which sources have already been announced as paused. One alert per pause, per source. */
+  private readonly alerted = new Set<string>();
 
   constructor(
     private readonly profilesService: ProfilesService,
@@ -110,22 +106,27 @@ export class PipelineService {
     private readonly repo: ListingsRepository,
     private readonly notifier: TelegramNotifier,
     private readonly verifier: ListingVerifier,
+    private readonly registry: SourceRegistry,
   ) {}
 
-  /** For /health: what the source is doing and how the last cycle went. */
+  /** For /health: what every source is doing, and how each kind of cycle last went. */
   get status(): {
-    source: { requests: number; paused: boolean; reason: string | null };
+    sources: Record<string, { requests: number; paused: boolean; reason: string | null }>;
+    pausedSources: string[];
     lastCycleAt: string | null;
     lastCycle: CycleReport | null;
   } {
+    const unit = this.lastCycles.get('unit');
     return {
-      source: this.source.stats,
-      lastCycleAt: this.lastCycle?.finishedAt.toISOString() ?? null,
-      lastCycle: this.lastCycle?.report ?? null,
+      sources: this.registry.health(),
+      pausedSources: this.registry.pausedSources(),
+      lastCycleAt: unit?.finishedAt.toISOString() ?? null,
+      lastCycle: unit?.report ?? null,
     };
   }
 
   async runCycle(options: CycleOptions = {}): Promise<CycleReport> {
+    const startedAt = new Date();
     const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     const hydrationBudget = options.hydrationBudget ?? DEFAULT_HYDRATION_BUDGET;
 
@@ -138,10 +139,14 @@ export class PipelineService {
     }
 
     const geo = this.geoService.get();
-    const source: ListingSource = this.source;
-    if (this.source.resetIfCooledDown(SOURCE_COOLDOWN_MS)) {
-      this.logger.log('source cooldown elapsed — resuming');
-      this.alerted = false;
+    const source = this.registry.unitSources()[0];
+    if (!source) {
+      report.errors.push('no unit sources registered');
+      return report;
+    }
+    if (source.resetIfCooledDown(SOURCE_COOLDOWN_MS)) {
+      this.logger.log(`${source.name} cooldown elapsed — resuming`);
+      this.alerted.delete(source.name);
     }
 
     // --- Stage A: triage -----------------------------------------------------------
@@ -205,8 +210,11 @@ export class PipelineService {
     // Anything already hydrated is scored straight from the database. Without this, every
     // cycle would re-download the body of every candidate it has ever seen — which on a
     // 20-minute schedule is exactly how a source starts answering 429.
+    // Keyed on the source that produced them. Hardcoding 'kijiji' here would silently return
+    // nothing the moment anything else ran through this method, defeating the cache whose whole
+    // job is to stop us re-downloading every candidate we have ever seen.
     const stored = await this.repo.findHydrated(
-      'kijiji',
+      source.name,
       queue.map((c) => c.listing.sourceId),
     );
 
@@ -247,7 +255,7 @@ export class PipelineService {
     // --- Stage C: confirm the ones already found are still there ---------------------
     await this.recheck(source, options.recheckBudget ?? DEFAULT_RECHECK_BUDGET, report);
 
-    this.lastCycle = { finishedAt: new Date(), report };
+    await this.finish('unit', 'listings', source.name, startedAt, report);
     await this.alertIfPaused(profiles, report);
     return report;
   }
@@ -266,8 +274,6 @@ export class PipelineService {
    * is skipped instead.
    */
   async runBuildingCycle(options: CycleOptions = {}): Promise<CycleReport> {
-    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
-    const expansionBudget = options.hydrationBudget ?? DEFAULT_HYDRATION_BUDGET;
     const report = emptyReport();
 
     const profiles = await this.profilesService.findActive();
@@ -276,9 +282,41 @@ export class PipelineService {
       return report;
     }
     const geo = this.geoService.get();
-    const source = this.buildingSource;
+
+    // Sequential, not Promise.all. Each source holds its own limiter so parallel fetching would
+    // be safe on the network, but they share this report and the database, and the budgets are
+    // small enough that the ordering buys nothing worth the interleaving.
+    for (const source of this.registry.buildingSources()) {
+      const startedAt = new Date();
+      const before = report.errors.length;
+      try {
+        await this.runOneBuildingSource(source, profiles, geo, options, report);
+      } catch (err) {
+        // One source failing must not abort the others; that is the whole reason for the loop.
+        report.errors.push(`${source.name}: ${(err as Error).message}`);
+      }
+      await this.recordRun('buildings', source.name, startedAt, report, report.errors.slice(before));
+    }
+
+    this.lastCycles.set('building', { finishedAt: new Date(), report });
+    // A paused Zumper used to alert nobody, because this method never asked.
+    await this.alertIfPaused(profiles, report);
+    return report;
+  }
+
+  /** One building source, from enumeration to notification. */
+  private async runOneBuildingSource(
+    source: BuildingListingSource,
+    profiles: TenantProfile[],
+    geo: GeoIndex,
+    options: CycleOptions,
+    report: CycleReport,
+  ): Promise<void> {
+    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+    const expansionBudget = options.hydrationBudget ?? DEFAULT_HYDRATION_BUDGET;
     if (source.resetIfCooledDown(SOURCE_COOLDOWN_MS)) {
       this.logger.log(`${source.name} cooldown elapsed — resuming`);
+      this.alerted.delete(source.name);
     }
 
     // --- Stage A: enumerate buildings ------------------------------------------------
@@ -299,10 +337,10 @@ export class PipelineService {
     }
 
     // --- Stage B: open the ones that changed -----------------------------------------
-    const toOpen = await this.repo.findBuildingsDueForExpansion(source.name, expansionBudget);
+    const toOpen = await this.repo.findBuildingsDueForExpansion(source.name, expansionBudget, source.refreshEveryMs);
     // Counted rather than inferred from the page of work taken: a backlog of 96 reported as
     // "1 deferred" is how a backfill that will never finish looks finished.
-    const backlog = await this.repo.countBuildingsDueForExpansion(source.name);
+    const backlog = await this.repo.countBuildingsDueForExpansion(source.name, source.refreshEveryMs);
     report.buildingsDeferred = Math.max(0, backlog - toOpen.length);
 
     for (const row of toOpen) {
@@ -335,30 +373,74 @@ export class PipelineService {
         await this.evaluate(enriched, stored.id, profiles, geo, report, options, source.name);
       }
     }
+  }
 
-    this.lastCycle = { finishedAt: new Date(), report };
-    return report;
+  /** Marks a unit cycle finished: remembers it for /health and records it for the history. */
+  private async finish(
+    slot: 'unit' | 'building',
+    kind: string,
+    source: string | null,
+    startedAt: Date,
+    report: CycleReport,
+  ): Promise<void> {
+    this.lastCycles.set(slot, { finishedAt: new Date(), report });
+    await this.recordRun(kind, source, startedAt, report, report.errors);
+  }
+
+  /**
+   * Writes the cycle to the history.
+   *
+   * Never allowed to fail the cycle: the run already happened, and losing the record of it is a
+   * strictly smaller problem than throwing away the work that produced it.
+   */
+  private async recordRun(
+    kind: string,
+    source: string | null,
+    startedAt: Date,
+    report: CycleReport,
+    errors: string[],
+  ): Promise<void> {
+    try {
+      await this.repo.recordCycleRun({
+        kind,
+        source,
+        startedAt,
+        finishedAt: new Date(),
+        ok: errors.length === 0,
+        report: report as unknown as Record<string, unknown>,
+        errors,
+      });
+    } catch (err) {
+      this.logger.error(`could not record cycle run: ${(err as Error).message}`);
+    }
   }
 
   /**
    * Tells you when a source has stopped talking to us.
    *
-   * A paused source produces empty cycles that look exactly like a quiet market, which is
-   * the failure mode most likely to go unnoticed for a week. Sent once per pause, not once
-   * per cycle, so a long outage does not itself become the spam.
+   * A paused source produces empty cycles that look exactly like a quiet market, which is the
+   * failure mode most likely to go unnoticed for a week. Sent once per pause **per source**, not
+   * once per cycle, so a long outage does not itself become the spam — but a second source going
+   * down during the first one's outage is news, and still gets said.
    */
   private async alertIfPaused(profiles: TenantProfile[], report: CycleReport): Promise<void> {
-    if (!this.source.paused || this.alerted) return;
-    this.alerted = true;
+    const paused = newlyPaused(this.registry.all(), this.alerted);
+    if (paused.length === 0) return;
+    for (const source of paused) this.alerted.add(source.name);
 
-    const reason = this.source.stats.reason ?? 'unknown';
+    const lines = paused.map(
+      (s) => `• <b>${escapeForAlert(s.name)}</b>: ${escapeForAlert(s.stats.reason ?? 'unknown')}`,
+    );
     const recipients = [...new Set(profiles.flatMap((p) => p.notify.telegramChatIds))];
     await this.notifier.alert(
       recipients,
-      `⚠️ <b>Kijiji paused</b>\n${escapeForAlert(reason)}\n\nNo new listings will be found until it recovers. ` +
-        `The next cycle retries automatically after the cooldown.`,
+      `⚠️ <b>Source paused</b>\n${lines.join('\n')}\n\nNo new listings will be found from ` +
+        `${paused.length === 1 ? 'it' : 'them'} until recovery. The next cycle retries ` +
+        `automatically after the cooldown.`,
     );
-    if (report.errors.length === 0) report.errors.push(`source paused: ${reason}`);
+    if (report.errors.length === 0) {
+      report.errors.push(`source paused: ${paused.map((s) => s.name).join(', ')}`);
+    }
   }
 
   /**
@@ -368,7 +450,7 @@ export class PipelineService {
    * while remaining perfectly available, so absence proves nothing — only the ad's own
    * status does. Least-recently-confirmed first, so attention spreads evenly.
    */
-  private async recheck(source: ListingSource, budget: number, report: CycleReport): Promise<void> {
+  private async recheck(source: UnitListingSource, budget: number, report: CycleReport): Promise<void> {
     if (budget <= 0) return;
 
     for (const row of await this.repo.findForRecheck(budget)) {
@@ -401,6 +483,7 @@ export class PipelineService {
    * out — the unique index on notifications keeps that from repeating anything.
    */
   async runFromStored(options: CycleOptions = {}): Promise<CycleReport> {
+    const startedAt = new Date();
     const report = emptyReport();
 
     const profiles = await this.profilesService.findActive();
@@ -418,6 +501,9 @@ export class PipelineService {
       await this.evaluate(listingFromRow(row), row.id, profiles, geo, report, options, row.source);
     }
 
+    // Recorded with a null source: this run touches no source at all, and charging it to one
+    // would make a calibration pass look like collection activity in the operations report.
+    await this.recordRun('stored', null, startedAt, report, report.errors);
     return report;
   }
 

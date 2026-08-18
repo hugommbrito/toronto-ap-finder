@@ -1,6 +1,6 @@
 import { fetchText } from '@/seed/http';
 import type { TriageListing } from '@/listings/listing.types';
-import type { ListingDetail, ListingSource, TriagePage } from '../source.interface';
+import type { ListingDetail, TriagePage, UnitListingSource } from '../source.interface';
 import { RateLimiter } from '../rate-limiter';
 import { buildSearchUrl, extractNextData, parseDetailPage, parseSearchPage } from './kijiji.parser';
 
@@ -12,7 +12,7 @@ import { buildSearchUrl, extractNextData, parseDetailPage, parseSearchPage } fro
  * filter is disallowed by robots.txt — an identifiable User-Agent, and at least 2 s between
  * requests.
  */
-export class KijijiSource implements ListingSource {
+export class KijijiSource implements UnitListingSource {
   readonly name = 'kijiji';
   /**
    * 12 s, well above the 2 s floor the brief sets as a minimum.

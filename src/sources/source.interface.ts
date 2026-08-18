@@ -1,4 +1,4 @@
-import type { TriageListing } from '@/listings/listing.types';
+import type { ListingSource as ListingSourceId, TriageListing } from '@/listings/listing.types';
 
 /** A listing the source returned but could not be turned into a usable record. */
 export interface UnparsableListing {
@@ -18,14 +18,29 @@ export interface TriagePage {
 }
 
 /**
+ * What every source can be asked about itself, whatever it fetches.
+ *
+ * These three members already existed on both concrete classes and on **neither** interface,
+ * which is why the pipeline had to hold a source twice — once typed as the interface to fetch
+ * with, once as the class to ask whether it was paused. Declaring them here is what lets health,
+ * alerting and the operations route treat N sources uniformly instead of naming Kijiji.
+ */
+export interface SourceHealth {
+  readonly name: ListingSourceId;
+  readonly paused: boolean;
+  readonly stats: { requests: number; paused: boolean; reason: string | null };
+  /** Called at the start of a cycle: the gap between cycles is the backoff. */
+  resetIfCooledDown(cooldownMs: number): boolean;
+}
+
+/**
  * Every source implements the same two stages.
  *
  * Triage is cheap — one request per page of results, using whatever the source structures
  * for free. Hydration costs one request per listing, so it only runs for what survived
  * triage.
  */
-export interface ListingSource {
-  readonly name: string;
+export interface UnitListingSource extends SourceHealth {
   readonly granularity?: 'unit';
   /** Floor between requests. Section 13 of the brief sets a 2 s minimum. */
   readonly minIntervalMs: number;
@@ -78,10 +93,18 @@ export interface BuildingPage {
  * different things here. Opening one building yields *many* listings, already hydrated,
  * so there is no second per-listing request.
  */
-export interface BuildingListingSource {
-  readonly name: string;
+export interface BuildingListingSource extends SourceHealth {
   readonly minIntervalMs: number;
   readonly granularity: 'building';
+  /**
+   * How long a building may go unopened before it is due again regardless of any watermark.
+   *
+   * Required, not optional, and that is the point. A source with a watermark barely needs it, but
+   * making it optional would let a source with **no** watermark be added without anyone deciding
+   * how it gets re-checked — and that source's buildings would then be opened on every single
+   * cycle, forever, while the log looked healthy.
+   */
+  readonly refreshEveryMs: number;
 
   fetchBuildingPage(page: number): Promise<BuildingPage>;
 

@@ -27,6 +27,10 @@ No adapter exists for this source and none should be written. Re-checking later 
 (one request); if the challenge is ever lifted, the robots rules still have to be read and
 respected before anything is built.
 
+**Deliberately excluded from `pnpm probe`.** The probe exists to measure sources whose answer we do
+not already have. This one has answered, and re-requesting a site weekly to be told the same thing
+is not a measurement — it is traffic. Re-checking is a decision to make on purpose, not a cron job.
+
 ## What was given up
 
 Rentals.ca aggregates a large share of Canadian purpose-built rental inventory. Losing it is
