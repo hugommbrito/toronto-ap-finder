@@ -115,6 +115,9 @@ export interface ReachableLine {
   /** The closest station serving that line. */
   station: string;
   distanceM: number;
+  /** Where that station is, so a walking route can be linked. */
+  lat: number;
+  lng: number;
 }
 
 /**
@@ -135,7 +138,7 @@ export function reachableLines(nearby: NearbyStation[]): ReachableLine[] {
     for (const line of station.line.split(' / ').map((l) => l.trim()).filter(Boolean)) {
       const existing = closest.get(line);
       if (!existing || distanceM < existing.distanceM) {
-        closest.set(line, { line, station: station.name, distanceM });
+        closest.set(line, { line, station: station.name, distanceM, lat: station.lat, lng: station.lng });
       }
     }
   }

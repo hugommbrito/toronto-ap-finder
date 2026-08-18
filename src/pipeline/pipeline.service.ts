@@ -520,7 +520,13 @@ export class PipelineService {
         radiusM,
       },
       nearestDaycare: closest
-        ? { name: closest.daycare.name, distanceM: closest.distanceM, cwelcc: closest.daycare.cwelcc }
+        ? {
+            name: closest.daycare.name,
+            distanceM: closest.distanceM,
+            cwelcc: closest.daycare.cwelcc,
+            lat: closest.daycare.lat,
+            lng: closest.daycare.lng,
+          }
         : null,
     };
   }

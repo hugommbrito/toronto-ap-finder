@@ -15,6 +15,23 @@ function layoutLabel(beds: number | null, dens: number): string {
   return dens > 0 ? `${bedPart} + den` : bedPart;
 }
 
+/**
+ * A Google Maps walking-route deep link, via the Maps URLs API.
+ *
+ * No API key and no billing account: the URL scheme is a documented, free product. It also
+ * answers the question better than any image would — one tap gives the real route along real
+ * streets and Google's own walking time, where a static picture could only show two dots and
+ * the straight line this project estimates between them.
+ */
+export function walkingRouteUrl(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): string {
+  const origin = `${from.lat}%2C${from.lng}`;
+  const destination = `${to.lat}%2C${to.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=walking`;
+}
+
 function walkMinutes(metres: number): number {
   // ~80 m/min is a normal walking pace; good enough to make a distance legible.
   return Math.max(1, Math.round(metres / 80));
@@ -59,6 +76,12 @@ export function buildMessage(payload: NotificationPayload): string {
 
   if (listing.address) lines.push(`📍 ${escapeHtml(listing.address)}`);
 
+  const here =
+    listing.lat !== null && listing.lng !== null ? { lat: listing.lat, lng: listing.lng } : null;
+  /** Distances in this message are estimates; the link is where the real number lives. */
+  const route = (to: { lat: number; lng: number }): string =>
+    here ? ` · <a href="${walkingRouteUrl(here, to)}">rota</a>` : '';
+
   if (payload.reachableLines.length === 0) {
     // The case worth shouting about: a listing can score well on everything else and still
     // have no rapid transit at all. Toronto streetcars are not in the index by design.
@@ -67,12 +90,12 @@ export function buildMessage(payload: NotificationPayload): string {
     const [first, ...rest] = payload.reachableLines;
     lines.push(
       `🚇 ${escapeHtml(first!.line)} — ${escapeHtml(first!.station)}, ` +
-        `${Math.round(first!.distanceM)} m (~${walkMinutes(first!.distanceM)} min)`,
+        `${Math.round(first!.distanceM)} m (~${walkMinutes(first!.distanceM)} min)${route(first!)}`,
     );
     for (const l of rest) {
       lines.push(
         `    ${escapeHtml(l.line)} — ${escapeHtml(l.station)}, ` +
-          `${Math.round(l.distanceM)} m (~${walkMinutes(l.distanceM)} min)`,
+          `${Math.round(l.distanceM)} m (~${walkMinutes(l.distanceM)} min)${route(l)}`,
       );
     }
   }
@@ -82,7 +105,8 @@ export function buildMessage(payload: NotificationPayload): string {
     const { name, distanceM, cwelcc: isCwelcc } = payload.nearestDaycare;
     const tag = isCwelcc ? ' · CWELCC' : '';
     lines.push(
-      `    closest: ${escapeHtml(name)} — ${Math.round(distanceM)} m, ~${walkMinutes(distanceM)} min${tag}`,
+      `    closest: ${escapeHtml(name)} — ${Math.round(distanceM)} m, ` +
+        `~${walkMinutes(distanceM)} min${tag}${route(payload.nearestDaycare)}`,
     );
   }
   if (listing.buildingBuiltBefore2018 === true) lines.push('🏛 pre-2018 building — rent increases capped');

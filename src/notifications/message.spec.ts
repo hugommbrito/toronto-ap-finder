@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMessage, escapeHtml } from './message';
+import { buildMessage, escapeHtml, walkingRouteUrl } from './message';
 import type { NotificationPayload } from './notification.types';
 import { inQuietHours } from '@/pipeline/pipeline.service';
 import { buildSisterProfile } from '@/seed/sister-profile';
@@ -41,10 +41,14 @@ function payload(overrides: Partial<NotificationPayload> = {}): NotificationPayl
       rawComponents: { bedroomFit: 1, rentBelowTarget: 0.6, transitOperational: 1 },
       skipped: [],
     },
-    reachableLines: [{ line: 'Line 5 Eglinton', station: 'Keelesdale', distanceM: 412 }],
+    reachableLines: [
+      { line: 'Line 5 Eglinton', station: 'Keelesdale', distanceM: 412, lat: 43.6889, lng: -79.4795 },
+    ],
     transitRadiusM: 1200,
     daycaresNearby: { total: 3, cwelcc: 2, radiusM: 800 },
-    nearestDaycare: { name: 'Keelesdale Park Child Care', distanceM: 310, cwelcc: true },
+    nearestDaycare: {
+      name: 'Keelesdale Park Child Care', distanceM: 310, cwelcc: true, lat: 43.688, lng: -79.478,
+    },
     includeMap: true,
     unverified: [],
     ...overrides,
@@ -86,8 +90,8 @@ describe('buildMessage', () => {
     const msg = buildMessage(
       payload({
         reachableLines: [
-          { line: 'Line 4 Sheppard', station: 'Bayview', distanceM: 360 },
-          { line: 'Line 1 Yonge-University', station: 'Sheppard-Yonge', distanceM: 640 },
+          { line: 'Line 4 Sheppard', station: 'Bayview', distanceM: 360, lat: 43.7671, lng: -79.3866 },
+          { line: 'Line 1 Yonge-University', station: 'Sheppard-Yonge', distanceM: 640, lat: 43.7615, lng: -79.4111 },
         ],
       }),
     );
@@ -116,7 +120,9 @@ describe('buildMessage', () => {
 
   it('does not tag a non-CWELCC centre as one', () => {
     const msg = buildMessage(
-      payload({ nearestDaycare: { name: 'Some Centre', distanceM: 200, cwelcc: false } }),
+      payload({
+        nearestDaycare: { name: 'Some Centre', distanceM: 200, cwelcc: false, lat: 43.7, lng: -79.4 },
+      }),
     );
     expect(msg).toContain('closest: Some Centre');
     expect(msg).not.toContain('Some Centre — 200 m, ~3 min · CWELCC');
@@ -142,6 +148,38 @@ describe('buildMessage', () => {
     p.listing.beds = 2;
     p.listing.dens = 1;
     expect(buildMessage(p)).toContain('2 beds + den');
+  });
+});
+
+describe('walking route links', () => {
+  it('links a free Google Maps walking route to the nearest station', () => {
+    const msg = buildMessage(payload());
+    expect(msg).toContain('travelmode=walking');
+    // Origin is the listing, destination the station — not the other way round.
+    expect(msg).toContain('origin=43.7474%2C-79.51596&destination=43.6889%2C-79.4795');
+  });
+
+  it('links one to the closest daycare too', () => {
+    expect(buildMessage(payload())).toContain('destination=43.688%2C-79.478');
+  });
+
+  it('omits the links when the listing has no coordinates', () => {
+    const p = payload();
+    p.listing.lat = null;
+    p.listing.lng = null;
+    expect(buildMessage(p)).not.toContain('travelmode=walking');
+  });
+});
+
+describe('walkingRouteUrl', () => {
+  it('builds the documented, key-free Maps URLs form', () => {
+    const url = walkingRouteUrl({ lat: 43.7, lng: -79.4 }, { lat: 43.71, lng: -79.41 });
+    expect(url).toBe(
+      'https://www.google.com/maps/dir/?api=1&origin=43.7%2C-79.4&destination=43.71%2C-79.41&travelmode=walking',
+    );
+    // api=1 is mandatory; commas must be encoded.
+    expect(url).toContain('api=1');
+    expect(url).not.toMatch(/origin=[^&]*,/);
   });
 });
 

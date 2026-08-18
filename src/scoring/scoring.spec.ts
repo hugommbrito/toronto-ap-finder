@@ -443,7 +443,9 @@ describe('reachableLines', () => {
       at('Sheppard-Yonge', 'Line 1 Yonge-University / Line 4 Sheppard', 640),
     ]);
     const line4 = lines.find((l) => l.line === 'Line 4 Sheppard');
-    expect(line4).toEqual({ line: 'Line 4 Sheppard', station: 'Bayview', distanceM: 360 });
+    // Coordinates ride along for the walking-route link; this assertion is about which
+    // station won, not where it is.
+    expect(line4).toMatchObject({ line: 'Line 4 Sheppard', station: 'Bayview', distanceM: 360 });
   });
 
   it('does not report the same line twice', () => {
