@@ -27,6 +27,12 @@ function printReport(report: CycleReport): void {
 
   console.log('\n=== cycle report ===');
   console.log(`pages fetched        ${report.pagesFetched}`);
+  if (report.buildingsSeen > 0) {
+    console.log(`buildings seen       ${report.buildingsSeen}`);
+    console.log(`  opened this cycle  ${report.buildingsExpanded}`);
+    console.log(`  deferred to next   ${report.buildingsDeferred}`);
+    console.log(`  units found        ${report.unitsFound}`);
+  }
   console.log(`listings seen        ${report.listingsSeen}`);
   console.log(`  new to the db      ${report.storedNew}`);
   console.log(`  unparsable         ${report.unparsable}`);
@@ -58,6 +64,7 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   // Re-score what is already collected, with no requests to the source at all.
   const fromStored = process.argv.includes('--stored');
+  const buildings = process.argv.includes('--buildings');
   // Deliberately verbose to type: this bypasses a setting the tenant chose.
   const ignoreQuietHours = process.argv.includes('--ignore-quiet-hours');
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['log', 'warn', 'error'] });
@@ -66,17 +73,25 @@ async function main(): Promise<void> {
     if (ignoreQuietHours) {
       new Logger('run-cycle').warn('--ignore-quiet-hours: sending regardless of the profile window');
     }
-    const mode = fromStored ? 'stored corpus, no network' : 'live';
+    const mode = fromStored ? 'stored corpus, no network' : buildings ? 'live, buildings (zumper)' : 'live';
     new Logger('run-cycle').log(`starting cycle (${mode})${dryRun ? ' (dry run — nothing will be sent)' : ''}`);
     const report = fromStored
       ? await pipeline.runFromStored({ dryRun, ignoreQuietHours })
-      : await pipeline.runCycle({
-          maxPages: arg('pages', 5),
-              hydrationBudget: arg('hydrate', 20),
-          recheckBudget: arg('recheck', 3),
-          dryRun,
-          ignoreQuietHours,
-        });
+      : buildings
+        ? await pipeline.runBuildingCycle({
+            maxPages: arg('pages', 5),
+            // One request opens a whole building, so the budget counts buildings, not units.
+            hydrationBudget: arg('open', 12),
+            dryRun,
+            ignoreQuietHours,
+          })
+        : await pipeline.runCycle({
+            maxPages: arg('pages', 5),
+            hydrationBudget: arg('hydrate', 20),
+            recheckBudget: arg('recheck', 3),
+            dryRun,
+            ignoreQuietHours,
+          });
     printReport(report);
   } finally {
     await app.close();

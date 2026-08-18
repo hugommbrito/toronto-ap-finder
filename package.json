@@ -22,7 +22,8 @@
     "cycle:stored": "pnpm build && node dist/run-cycle.js --stored",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cycle:buildings": "pnpm build && node dist/run-cycle.js --buildings"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

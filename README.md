@@ -300,7 +300,22 @@ those queries back.
 Run one replica. Migrations run at boot without an advisory lock, so concurrent instances
 would race.
 
+## Sources
+
+| Source | Status | Granularity |
+|---|---|---|
+| Kijiji | live | one advertisement, one unit |
+| Zumper | live | search returns **buildings**; one request opens all their floorplans |
+| Rentals.ca | **refused** | `robots.txt` itself sits behind a Cloudflare challenge — see [docs/sources/rentals-ca.md](docs/sources/rentals-ca.md) |
+
+Zumper runs on its own cron, offset ten minutes from the Kijiji one. Its budget counts
+buildings rather than listings: four opened buildings produced 174 units in one measured run.
+Set `BUILDING_CYCLE_ENABLED=false` to turn it off without touching the Kijiji cycle.
+
+Cross-source deduplication is proven by test but not yet by production data: the two sources
+share no buildings at all, and the nearest pair of listings is 518 m apart. Details and
+measurements in [docs/sources/zumper.md](docs/sources/zumper.md).
+
 ## What is next
 
-- **Phase 3** — Rentals.ca and Zumper; prove cross-source dedup on real data.
 - **Phase 4** — second profile, with zero lines of code changed.

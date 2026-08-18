@@ -5,7 +5,8 @@ import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
 import { ListingsRepository } from '@/listings/listings.repository';
-import type { ListingVerificationRow } from '@/db/schema';
+import type { ListingVerificationRow, SourceBuildingRow } from '@/db/schema';
+import type { BuildingEntry } from '@/sources/source.interface';
 import { TelegramNotifier } from '@/notifications/telegram.notifier';
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { ProfilesService } from '@/profiles/profiles.service';
@@ -13,6 +14,7 @@ import { applyHardFilters, type HardFilterResult } from '@/scoring/hard-filters'
 import { scoreListing } from '@/scoring/scorer';
 import { reachableLines, type GeoIndex } from '@/scoring/context';
 import { KijijiSource } from '@/sources/kijiji/kijiji.source';
+import { ZumperSource } from '@/sources/zumper/zumper.source';
 import { SourcePausedError } from '@/sources/rate-limiter';
 import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/verification/listing-verifier';
 import { applyVerdict } from '@/verification/apply-verdict';
@@ -59,6 +61,11 @@ export interface CycleReport {
   verified: number;
   verificationRejected: number;
   verificationCorrected: number;
+  /** Buildings enumerated by a building-granularity source, and how many were opened. */
+  buildingsSeen: number;
+  buildingsExpanded: number;
+  buildingsDeferred: number;
+  unitsFound: number;
   rechecked: number;
   delisted: number;
   scored: number;
@@ -92,6 +99,7 @@ export class PipelineService {
    * real, and the gap between cycles becomes the backoff.
    */
   private readonly source = new KijijiSource(loadEnv().SCRAPER_CONTACT_EMAIL);
+  private readonly buildingSource = new ZumperSource(loadEnv().SCRAPER_CONTACT_EMAIL);
   private lastCycle: { finishedAt: Date; report: CycleReport } | null = null;
   /** Guards against alerting on every cycle for the same outage. */
   private alerted = false;
@@ -241,6 +249,94 @@ export class PipelineService {
 
     this.lastCycle = { finishedAt: new Date(), report };
     await this.alertIfPaused(profiles, report);
+    return report;
+  }
+
+  /**
+   * A cycle over a source that advertises buildings rather than units.
+   *
+   * The stages carry different meanings here than they do for Kijiji. Enumeration is cheap
+   * and returns containers, not listings — a price range over many floorplans answers no
+   * question the profile asks. Opening one container is the expensive request, and it
+   * returns *many* units, descriptions included, so there is no third stage.
+   *
+   * What keeps this affordable is the watermark, not a pre-filter: filtering buildings by
+   * price and bedroom range keeps 87 of 90, because a building's minimum price is always its
+   * cheapest studio. A building whose `modified_on` has not advanced since we last opened it
+   * is skipped instead.
+   */
+  async runBuildingCycle(options: CycleOptions = {}): Promise<CycleReport> {
+    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+    const expansionBudget = options.hydrationBudget ?? DEFAULT_HYDRATION_BUDGET;
+    const report = emptyReport();
+
+    const profiles = await this.profilesService.findActive();
+    if (profiles.length === 0) {
+      report.errors.push('no active profiles');
+      return report;
+    }
+    const geo = this.geoService.get();
+    const source = this.buildingSource;
+    if (source.resetIfCooledDown(SOURCE_COOLDOWN_MS)) {
+      this.logger.log(`${source.name} cooldown elapsed — resuming`);
+    }
+
+    // --- Stage A: enumerate buildings ------------------------------------------------
+    for (let page = 1; page <= maxPages; page += 1) {
+      try {
+        const result = await source.fetchBuildingPage(page);
+        report.pagesFetched += 1;
+        report.buildingsSeen += result.buildings.length;
+        report.unparsable += result.unparsable.length;
+        // Pages overlap — featured placements repeat across them — so the upsert, not the
+        // page boundary, is what deduplicates.
+        await this.repo.upsertBuildings(source.name, result.buildings);
+        if (result.buildings.length === 0) break;
+      } catch (err) {
+        report.errors.push(`${source.name} page ${page}: ${(err as Error).message}`);
+        break;
+      }
+    }
+
+    // --- Stage B: open the ones that changed -----------------------------------------
+    const toOpen = await this.repo.findBuildingsDueForExpansion(source.name, expansionBudget);
+    // Counted rather than inferred from the page of work taken: a backlog of 96 reported as
+    // "1 deferred" is how a backfill that will never finish looks finished.
+    const backlog = await this.repo.countBuildingsDueForExpansion(source.name);
+    report.buildingsDeferred = Math.max(0, backlog - toOpen.length);
+
+    for (const row of toOpen) {
+      let units: TriageListing[];
+      try {
+        units = await source.fetchUnits(buildingFromRow(row));
+        report.buildingsExpanded += 1;
+      } catch (err) {
+        if (err instanceof SourcePausedError) {
+          report.errors.push((err as Error).message);
+          break;
+        }
+        report.errors.push(`${source.name} building ${row.sourceId}: ${(err as Error).message}`);
+        continue;
+      }
+
+      // The watermark advances even when a building yields nothing usable. Otherwise an
+      // all-unpriced building would be reopened on every cycle, forever.
+      await this.repo.markBuildingExpanded(row.id, row.modifiedOn, units.length);
+      report.unitsFound += units.length;
+      report.listingsSeen += units.length;
+
+      for (const unit of units) {
+        // Units arrive with their body already attached, so enrichment reads the text we
+        // have rather than fetching one.
+        const enriched = enrichFromText(unit, unit.rawText ?? '');
+        const stored = await this.repo.upsertListing(enriched, fingerprintOf(enriched));
+        if (stored.isNew) report.storedNew += 1;
+        await this.repo.markHydrated(stored.id);
+        await this.evaluate(enriched, stored.id, profiles, geo, report, options, source.name);
+      }
+    }
+
+    this.lastCycle = { finishedAt: new Date(), report };
     return report;
   }
 
@@ -618,6 +714,10 @@ function emptyReport(): CycleReport {
     verified: 0,
     verificationRejected: 0,
     verificationCorrected: 0,
+    buildingsSeen: 0,
+    buildingsExpanded: 0,
+    buildingsDeferred: 0,
+    unitsFound: 0,
     rechecked: 0,
     delisted: 0,
     scored: 0,
@@ -644,4 +744,26 @@ function storedVerdict(row: ListingVerificationRow | null): Verdict | null {
     notes: row.notes ?? '',
   });
   return parsed.success ? parsed.data : null;
+}
+
+/** The stored row, back in the shape the source adapter expects. */
+function buildingFromRow(row: SourceBuildingRow): BuildingEntry {
+  return {
+    sourceId: row.sourceId,
+    url: row.url,
+    name: row.name ?? '',
+    address: row.address,
+    city: null,
+    lat: row.lat,
+    lng: row.lng,
+    minPrice: null,
+    maxPrice: null,
+    minBedrooms: null,
+    maxBedrooms: null,
+    floorplanCount: row.floorplanCount ?? 0,
+    modifiedOn: row.modifiedOn,
+    // Building-wide amenities are re-read from the building page itself, so the stored row
+    // does not need to carry them.
+    amenityTags: [],
+  };
 }

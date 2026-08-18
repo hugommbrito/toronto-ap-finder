@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '@/db/client';
+import type { BuildingEntry } from '@/sources/source.interface';
 import {
+  sourceBuildings,
+  type SourceBuildingRow,
   listingVerifications,
   type ListingVerificationRow,
   listings,
@@ -209,6 +212,93 @@ export class ListingsRepository {
       .where(eq(listingVerifications.listingId, listingId))
       .limit(1);
     return row ?? null;
+  }
+
+  /**
+   * Records the buildings a search page listed, keeping each one's watermark.
+   *
+   * `expandedModifiedOn` is deliberately never written here — only an actual expansion may
+   * advance it. Writing it on sight would mark every building as done without ever opening
+   * one.
+   */
+  async upsertBuildings(source: string, entries: BuildingEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+    await this.db
+      .insert(sourceBuildings)
+      .values(
+        entries.map((b) => ({
+          source,
+          sourceId: b.sourceId,
+          url: b.url,
+          name: b.name,
+          address: b.address,
+          lat: b.lat,
+          lng: b.lng,
+          floorplanCount: b.floorplanCount,
+          modifiedOn: b.modifiedOn,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [sourceBuildings.source, sourceBuildings.sourceId],
+        set: {
+          url: sql`excluded.url`,
+          name: sql`excluded.name`,
+          address: sql`excluded.address`,
+          lat: sql`excluded.lat`,
+          lng: sql`excluded.lng`,
+          floorplanCount: sql`excluded.floorplan_count`,
+          modifiedOn: sql`excluded.modified_on`,
+          lastSeenAt: sql`now()`,
+        },
+      });
+  }
+
+  /**
+   * Buildings worth opening: never opened, or changed since we last opened them.
+   *
+   * Never-opened buildings come first, then the ones that changed longest ago, so a backfill
+   * drains steadily instead of the same few buildings being refetched.
+   */
+  async findBuildingsDueForExpansion(source: string, limit: number): Promise<SourceBuildingRow[]> {
+    return this.db
+      .select()
+      .from(sourceBuildings)
+      .where(
+        and(
+          eq(sourceBuildings.source, source),
+          or(
+            isNull(sourceBuildings.expandedModifiedOn),
+            sql`${sourceBuildings.modifiedOn} > ${sourceBuildings.expandedModifiedOn}`,
+          ),
+        ),
+      )
+      .orderBy(sql`${sourceBuildings.expandedModifiedOn} NULLS FIRST`, sourceBuildings.lastExpandedAt)
+      .limit(limit);
+  }
+
+  /** How many buildings are waiting. Counted, not inferred from the page of work taken. */
+  async countBuildingsDueForExpansion(source: string): Promise<number> {
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sourceBuildings)
+      .where(
+        and(
+          eq(sourceBuildings.source, source),
+          or(
+            isNull(sourceBuildings.expandedModifiedOn),
+            sql`${sourceBuildings.modifiedOn} > ${sourceBuildings.expandedModifiedOn}`,
+          ),
+        ),
+      );
+    return row?.n ?? 0;
+  }
+
+  /** Advances the watermark. Only called after a building has actually been opened. */
+  async markBuildingExpanded(id: string, modifiedOn: Date | null, unitCount: number): Promise<void> {
+    await this.db
+      .update(sourceBuildings)
+      .set({ expandedModifiedOn: modifiedOn, lastExpandedAt: new Date(), lastUnitCount: unitCount })
+      .where(eq(sourceBuildings.id, id));
   }
 
   /** Upserts, so a retry after a failed call replaces the recorded error with the verdict. */
