@@ -155,8 +155,31 @@ export class TelegramNotifier implements Notifier {
     }
   }
 
-  /** Returns false when this unit was already notified for this profile. */
+  /**
+   * Returns false when this unit was already notified for this profile.
+   *
+   * Two independent guards, because they catch different things. The unique index on
+   * (profile_id, fingerprint) stops the same physical unit notifying twice when it is
+   * advertised on more than one site. The listing_id check stops the same *advertisement*
+   * notifying twice when its fingerprint changes underneath us — the fingerprint is built
+   * from address, layout and rent bucket, so correcting our own reading of a listing
+   * (a den we had wrongly inferred, say) mints a new fingerprint for an ad already sent.
+   * Without this, every improvement to the extraction layer would re-notify its own back
+   * catalogue.
+   */
   private async claim(payload: NotificationPayload): Promise<boolean> {
+    const [seen] = await this.db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.profileId, payload.profileId),
+          eq(notifications.listingId, payload.listingId),
+        ),
+      )
+      .limit(1);
+    if (seen) return false;
+
     const inserted = await this.db
       .insert(notifications)
       .values({

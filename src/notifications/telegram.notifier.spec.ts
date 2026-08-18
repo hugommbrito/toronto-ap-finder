@@ -13,9 +13,16 @@ import { buildSisterProfile } from '@/seed/sister-profile';
 import type { NotificationPayload } from './notification.types';
 
 /** Minimal stand-in for the drizzle handle, recording what the notifier did. */
-function fakeDb(claimSucceeds = true) {
+function fakeDb(claimSucceeds = true, alreadyNotifiedListing = false) {
   const calls = { claimed: 0, released: 0, recorded: [] as string[][] };
   const db = {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => (alreadyNotifiedListing ? [{ id: 'existing' }] : []),
+        }),
+      }),
+    }),
     insert: () => ({
       values: () => ({
         onConflictDoNothing: () => ({
@@ -116,6 +123,23 @@ describe('TelegramNotifier — several recipients', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.messageId).toBeNull();
     expect(calls.released).toBe(0);
+  });
+
+  /**
+   * Regression. The fingerprint is built from address, layout and rent bucket, so correcting
+   * our own reading of a listing mints a new one for an advertisement already sent. Without
+   * a listing-level guard, every improvement to the extraction layer would re-notify its own
+   * back catalogue — two real listings were about to be sent a second time this way.
+   */
+  it('sends nothing for an advertisement already notified, even under a new fingerprint', async () => {
+    const { db, calls } = fakeDb(true, true);
+    const notifier = new TelegramNotifier(db as never);
+
+    const result = await notifier.send({ ...payload(['a']), fingerprint: 'a-brand-new-fingerprint' });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.messageId).toBeNull();
+    expect(calls.claimed).toBe(0);
   });
 
   it('sends a pin per recipient when the profile asks for one', async () => {
