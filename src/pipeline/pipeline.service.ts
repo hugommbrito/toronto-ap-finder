@@ -5,6 +5,7 @@ import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
 import { ListingsRepository } from '@/listings/listings.repository';
+import type { ListingVerificationRow } from '@/db/schema';
 import { TelegramNotifier } from '@/notifications/telegram.notifier';
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { ProfilesService } from '@/profiles/profiles.service';
@@ -13,7 +14,7 @@ import { scoreListing } from '@/scoring/scorer';
 import { reachableLines, type GeoIndex } from '@/scoring/context';
 import { KijijiSource } from '@/sources/kijiji/kijiji.source';
 import { SourcePausedError } from '@/sources/rate-limiter';
-import { ListingVerifier, VERIFIER_MODEL } from '@/verification/listing-verifier';
+import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/verification/listing-verifier';
 import { applyVerdict } from '@/verification/apply-verdict';
 import type { ListingSource } from '@/sources/source.interface';
 
@@ -340,8 +341,12 @@ export class PipelineService {
   ): Promise<{ listing: TriageListing; rejected: boolean; note: string | null }> {
     if (!this.verifier.configured) return { listing, rejected: false, note: null };
 
-    const alreadyVerified = await this.repo.findVerifiedListingIds([listingId]);
-    if (alreadyVerified.has(listingId)) return { listing, rejected: false, note: null };
+    // A stored verdict is re-applied, not skipped. Reading the advertisement again would be
+    // pure cost — its text does not change — but the verdict's *effect* has to be applied on
+    // every cycle, or a listing the model cut down to one bedroom quietly notifies later.
+    const stored = await this.repo.findVerification(listingId);
+    const cached = storedVerdict(stored);
+    if (cached) return this.actOnVerdict(listing, listingId, profile, geo, report, cached, false);
 
     const result = await this.verifier.verify(listing);
     if (!result.ok) {
@@ -351,19 +356,34 @@ export class PipelineService {
     }
 
     report.verified += 1;
-    const outcome = applyVerdict(listing, result.verdict, profile);
-    await this.repo.recordVerification({
-      listingId,
-      model: VERIFIER_MODEL,
-      bedrooms: result.verdict.bedrooms,
-      dens: result.verdict.dens,
-      isEntireUnit: result.verdict.isEntireUnit,
-      isSplitDwelling: result.verdict.isSplitDwelling,
-      confidence: result.verdict.confidence,
-      evidence: result.verdict.evidence,
-      notes: result.verdict.notes,
-      applied: outcome.applied,
-    });
+    return this.actOnVerdict(listing, listingId, profile, geo, report, result.verdict, true);
+  }
+
+  /** Applies a verdict — freshly read or replayed from the database — and records it. */
+  private async actOnVerdict(
+    listing: TriageListing,
+    listingId: string,
+    profile: TenantProfile,
+    geo: GeoIndex,
+    report: CycleReport,
+    verdict: Verdict,
+    persist: boolean,
+  ): Promise<{ listing: TriageListing; rejected: boolean; note: string | null }> {
+    const outcome = applyVerdict(listing, verdict, profile);
+    if (persist) {
+      await this.repo.recordVerification({
+        listingId,
+        model: VERIFIER_MODEL,
+        bedrooms: verdict.bedrooms,
+        dens: verdict.dens,
+        isEntireUnit: verdict.isEntireUnit,
+        isSplitDwelling: verdict.isSplitDwelling,
+        confidence: verdict.confidence,
+        evidence: verdict.evidence,
+        notes: verdict.notes,
+        applied: outcome.applied,
+      });
+    }
 
     if (outcome.reject) {
       report.verificationRejected += 1;
@@ -609,4 +629,19 @@ function emptyReport(): CycleReport {
 
 function escapeForAlert(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Rebuilds a verdict from its stored row, or null when the row only recorded a failure. */
+function storedVerdict(row: ListingVerificationRow | null): Verdict | null {
+  if (!row || row.error !== null) return null;
+  const parsed = verdictSchema.safeParse({
+    bedrooms: row.bedrooms,
+    dens: row.dens,
+    isEntireUnit: row.isEntireUnit,
+    isSplitDwelling: row.isSplitDwelling,
+    confidence: row.confidence,
+    evidence: row.evidence ?? '',
+    notes: row.notes ?? '',
+  });
+  return parsed.success ? parsed.data : null;
 }

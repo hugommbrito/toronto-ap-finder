@@ -120,3 +120,35 @@ describe('verdictSchema', () => {
     expect(verdictSchema.safeParse(missing).success).toBe(false);
   });
 });
+
+/**
+ * Regression. Verdicts are read once and replayed on every later cycle, so replaying one has
+ * to reach the same conclusion as applying it fresh. When this did not hold, a unit the model
+ * had cut from two bedrooms to one went back to notifying on the next pass.
+ */
+describe('applyVerdict — replayed from storage', () => {
+  it('reaches the same conclusion on a replay as on the first application', () => {
+    const cases: Verdict[] = [
+      verdict({ bedrooms: 1, dens: 1 }),
+      verdict({ isEntireUnit: false }),
+      verdict({ isSplitDwelling: true }),
+      verdict({ bedrooms: 1, confidence: 'low' }),
+      verdict(),
+    ];
+    for (const v of cases) {
+      const first = applyVerdict(listing({ beds: 3 }), v, STRICT);
+      const replay = applyVerdict(listing({ beds: 3 }), v, STRICT);
+      expect(replay.reject?.reason ?? null).toBe(first.reject?.reason ?? null);
+      expect(replay.listing.beds).toBe(first.listing.beds);
+      expect(replay.applied).toBe(first.applied);
+    }
+  });
+
+  it('still cuts a listing down on the replay, not just the first read', () => {
+    const stored = verdict({ bedrooms: 1, dens: 1, evidence: 'Fantastic 1 Plus Den (Study) Unit' });
+    const outcome = applyVerdict(listing({ beds: 2 }), stored, STRICT);
+    // 1 bedroom fails the profile's floor of 2 — the pipeline rejects on the re-check.
+    expect(outcome.listing.beds).toBe(1);
+    expect(outcome.applied).toBe(true);
+  });
+});

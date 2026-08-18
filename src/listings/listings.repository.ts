@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Database } from '@/db/client';
 import {
   listingVerifications,
+  type ListingVerificationRow,
   listings,
   matches,
   needsReview,
@@ -193,20 +194,44 @@ export class ListingsRepository {
       .values(reviews.map((r) => ({ profileId, listingId, field: r.field, reason: r.reason })));
   }
 
-  /** Verdicts already recorded, so the same advertisement is never read twice. */
-  async findVerifiedListingIds(listingIds: string[]): Promise<Set<string>> {
-    if (listingIds.length === 0) return new Set();
-    const rows = await this.db
-      .select({ listingId: listingVerifications.listingId })
+  /**
+   * The verdict already recorded for a listing, if any.
+   *
+   * Returned rather than merely counted, because a verdict has to be *re-applied* on every
+   * later cycle, not just recorded once. Skipping a listing because it had been read before
+   * silently discarded the verdict's effect: a unit the model had cut down to one bedroom
+   * went back to notifying on the next pass.
+   */
+  async findVerification(listingId: string): Promise<ListingVerificationRow | null> {
+    const [row] = await this.db
+      .select()
       .from(listingVerifications)
-      .where(inArray(listingVerifications.listingId, listingIds));
-    return new Set(rows.map((r) => r.listingId));
+      .where(eq(listingVerifications.listingId, listingId))
+      .limit(1);
+    return row ?? null;
   }
 
+  /** Upserts, so a retry after a failed call replaces the recorded error with the verdict. */
   async recordVerification(row: typeof listingVerifications.$inferInsert): Promise<void> {
-    await this.db.insert(listingVerifications).values(row).onConflictDoNothing({
-      target: listingVerifications.listingId,
-    });
+    await this.db
+      .insert(listingVerifications)
+      .values(row)
+      .onConflictDoUpdate({
+        target: listingVerifications.listingId,
+        set: {
+          model: sql`excluded.model`,
+          bedrooms: sql`excluded.bedrooms`,
+          dens: sql`excluded.dens`,
+          isEntireUnit: sql`excluded.is_entire_unit`,
+          isSplitDwelling: sql`excluded.is_split_dwelling`,
+          confidence: sql`excluded.confidence`,
+          evidence: sql`excluded.evidence`,
+          notes: sql`excluded.notes`,
+          applied: sql`excluded.applied`,
+          error: sql`excluded.error`,
+          createdAt: sql`now()`,
+        },
+      });
   }
 
   async upsertMatch(listingId: string, profileId: string, result: ScoreResult): Promise<void> {
