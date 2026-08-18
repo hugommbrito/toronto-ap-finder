@@ -72,27 +72,54 @@ dates (`1 Bedroom`, `2 Bedroom`, `Bachelor`, `$1,605`, `Available September 1`).
 needs markup parsing rather than a JSON key, which is the one place this source costs more than
 Zumper.
 
-## Inventory, measured
+## Inventory, measured — and the correction that matters
 
-Eight of the 44 buildings in the 416, sampled:
+A first pass counted bedroom labels and reported that six of eight sampled buildings advertise a
+three-bedroom. That number was wrong in a way worth recording, because the mistake is built into
+the page: **a building page lists the unit types the building contains, not what is available.**
 
 ```
-wellesley-apartments          beds=[1,2]+bach    $1605-2655
-roanoke-apartments            beds=[1,2,3]       $1850-2305
-livonia-apartments            beds=[1,2,3]       $1785-2255
-tower-hill-east               beds=[1,2,3]+bach  $2170-4240
-the-thomas                    beds=[1,2,3]+bach  $2995-4995
-belmar-apartments             beds=[1,2]+bach    $1825-2320
-don-view-towers               beds=[1,2,3]+bach  $1750-3105
-scarborough-golf-apartments   beds=[1,2,3]       $1880-2910
+roanoke-apartments    2 Bedroom + Den    (no price)   No Vacancies
+roanoke-apartments    3 Bedroom          (no price)   No Vacancies
 ```
 
-**Six of eight advertise a three-bedroom**, and four of those sit entirely under the profile's
-$3,200 ceiling. This is the addendum's central claim about property managers, confirmed with
-numbers rather than asserted: a 3BR is rare among condos and standard in purpose-built rental.
+A row with `No Vacancies` and no price is a floor plan, not an offer. An adapter that emitted
+those would fill the feed with apartments nobody can rent, and they would score *well* — the
+bedroom count is real, only the availability is not.
 
-That is the argument for this source. It is not a marginal addition — it is the segment the two
-existing sources barely cover.
+Re-measured across twelve of the forty-four buildings in the 416, counting only rows that are
+`data-available="true"` **and** carry a price:
+
+```
+48 unit blocks seen, 32 available with a price
+13 qualifying units (2 bedrooms or more, at or under the $3,200 ceiling)
+10 of 12 buildings hold at least one
+```
+
+The top two rungs of the layout ladder, which is what this profile is actually short of:
+
+```
+don-view-towers               3 Bedroom        $3,105
+scarborough-golf-apartments   3 Bedroom        $2,910
+30-tuxedo-court-apartments    3 Bedroom        $2,750
+bay-mills-apartments          2 Bedroom + Den  $2,650
+```
+
+Four buildings in twelve. If the sample holds across all forty-four, that is roughly a dozen
+three-bedroom or two-plus-den offers inside the budget, standing at any one time — in a segment
+where Kijiji is individual landlords and condo owners, and where `bedroom_rule` is currently the
+second-largest source of rejections in the funnel.
+
+That is the argument for this source, and it survives the correction. It is not a marginal
+addition; it is the segment the two existing sources barely cover.
+
+## The den is declared, which no other source does
+
+`1 Bedroom + Den`, `2 Bedroom + Den` appear as their own unit types, and the enquiry link repeats
+the fact in machine-readable form (`/inquiry-form/2-bedroom-den/`). Zumper publishes no prose and
+therefore reports `dens: 0` for every unit, which silently demotes every two-plus-den to the
+bottom rung of the ladder. Here the middle rung can actually be reached, from structured data
+rather than from an extraction rule over prose.
 
 ## Shape, if it is implemented
 
