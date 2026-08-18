@@ -46,6 +46,13 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
       bedroomRule: { kind: 'min', beds: 2 },
       availableFrom: null,
       requireParking: true,
+      /**
+       * A main-floor unit with the basement let separately means a neighbour through the
+       * floor, a shared entrance and shared laundry. Costly: split houses were 4 of the 9
+       * listings that cleared the bar in a live sample, so this narrows the shortlist
+       * sharply. Set it back to true with one UPDATE if the funnel gets too thin.
+       */
+      allowSplitDwelling: false,
       minDaycaresWithin: { radiusM: 800, count: 1, ageGroup: 'toddler' },
       /**
        * No hard cut on transit — distance is scored instead (soft.transitWalkZeroM).

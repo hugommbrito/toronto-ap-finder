@@ -576,6 +576,7 @@ describe('configurability — adding a profile must not touch code', () => {
       availableFrom: null,
       requireParking: false,
       minDaycaresWithin: null,
+      allowSplitDwelling: true,
       maxTransitWalkM: 600,
       cities: ['Toronto'],
     },

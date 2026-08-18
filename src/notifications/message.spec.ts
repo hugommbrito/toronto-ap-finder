@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMessage, escapeHtml, walkingRouteUrl } from './message';
+import { buildMessage, escapeHtml, overviewMapUrl, walkingRouteUrl, MAX_MAP_STOPS } from './message';
 import type { NotificationPayload } from './notification.types';
 import { inQuietHours } from '@/pipeline/pipeline.service';
 import { buildSisterProfile } from '@/seed/sister-profile';
@@ -49,6 +49,11 @@ function payload(overrides: Partial<NotificationPayload> = {}): NotificationPayl
     nearestDaycare: {
       name: 'Keelesdale Park Child Care', distanceM: 310, cwelcc: true, lat: 43.688, lng: -79.478,
     },
+    mapStops: [
+      { label: 'Keelesdale', lat: 43.6889, lng: -79.4795 },
+      { label: 'Keelesdale Park Child Care', lat: 43.688, lng: -79.478 },
+      { label: 'Rockcliffe Child Care', lat: 43.6871, lng: -79.4802 },
+    ],
     includeMap: true,
     unverified: [],
     ...overrides,
@@ -168,6 +173,28 @@ describe('walking route links', () => {
     p.listing.lat = null;
     p.listing.lng = null;
     expect(buildMessage(p)).not.toContain('travelmode=walking');
+  });
+});
+
+describe('overview map link', () => {
+  it('puts every nearby point on one map, as a round trip from the listing', () => {
+    const msg = buildMessage(payload());
+    expect(msg).toContain('map of the area');
+    // Origin and destination are the listing: the route is beside the point, the pins are not.
+    expect(msg).toContain('origin=43.7474%2C-79.51596&destination=43.7474%2C-79.51596');
+    expect(msg).toContain('waypoints=43.6889%2C-79.4795%7C43.688%2C-79.478%7C43.6871%2C-79.4802');
+  });
+
+  it('never asks for more waypoints than a phone will render', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ label: `p${i}`, lat: 43.7 + i / 1000, lng: -79.4 }));
+    const url = overviewMapUrl({ lat: 43.7, lng: -79.4 }, many);
+    // Three is the mobile-browser cap; more produces a link that breaks where it is used.
+    expect(url!.split('%7C')).toHaveLength(MAX_MAP_STOPS);
+  });
+
+  it('omits the link entirely when there is nothing to plot', () => {
+    expect(overviewMapUrl({ lat: 43.7, lng: -79.4 }, [])).toBeNull();
+    expect(buildMessage(payload({ mapStops: [] }))).not.toContain('map of the area');
   });
 });
 

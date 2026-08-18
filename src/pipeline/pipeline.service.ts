@@ -33,6 +33,14 @@ export interface CycleOptions {
   recheckBudget?: number;
   /** Score, log and store, but send nothing. */
   dryRun?: boolean;
+  /**
+   * Send even inside the profile's quiet hours, for this run only.
+   *
+   * A per-run override rather than a profile edit: turning quiet hours off in the database
+   * to force one delivery means remembering to turn them back on, and a crash in between
+   * leaves the tenant being woken up indefinitely.
+   */
+  ignoreQuietHours?: boolean;
 }
 
 export interface CycleReport {
@@ -343,13 +351,14 @@ export class PipelineService {
     }
 
     report.verified += 1;
-    const outcome = applyVerdict(listing, result.verdict);
+    const outcome = applyVerdict(listing, result.verdict, profile);
     await this.repo.recordVerification({
       listingId,
       model: VERIFIER_MODEL,
       bedrooms: result.verdict.bedrooms,
       dens: result.verdict.dens,
       isEntireUnit: result.verdict.isEntireUnit,
+      isSplitDwelling: result.verdict.isSplitDwelling,
       confidence: result.verdict.confidence,
       evidence: result.verdict.evidence,
       notes: result.verdict.notes,
@@ -460,7 +469,7 @@ export class PipelineService {
         if (score.score < profile.notify.minScore) continue;
       }
 
-      if (inQuietHours(profile)) {
+      if (!options.ignoreQuietHours && inQuietHours(profile)) {
         // Deferred, not dropped: nothing is claimed, so the next cycle sends it.
         report.suppressedQuietHours += 1;
         continue;
@@ -491,7 +500,7 @@ export class PipelineService {
     geo: GeoIndex,
   ): Pick<
     Parameters<TelegramNotifier['send']>[0],
-    'reachableLines' | 'transitRadiusM' | 'daycaresNearby' | 'nearestDaycare'
+    'reachableLines' | 'transitRadiusM' | 'daycaresNearby' | 'nearestDaycare' | 'mapStops'
   > {
     const cfg = profile.hard.minDaycaresWithin;
     const radiusM = cfg?.radiusM ?? 800;
@@ -505,15 +514,25 @@ export class PipelineService {
         transitRadiusM,
         daycaresNearby: { total: 0, cwelcc: 0, radiusM },
         nearestDaycare: null,
+        mapStops: [],
       };
     }
     const point = { lat: listing.lat, lng: listing.lng };
     // daycaresWithin already returns them sorted by distance, so the first is the closest.
     const nearby = cfg ? geo.daycaresWithin(point, radiusM, cfg.ageGroup) : [];
     const closest = nearby[0];
+    const lines = reachableLines(geo.stationsWithin(point, transitRadiusM, 'operational'));
+    // Nearest station first, then the closest daycares: with only three slots, the station is
+    // the one point the daycare count cannot stand in for.
+    const mapStops = [
+      ...lines.slice(0, 1).map((l) => ({ label: l.station, lat: l.lat, lng: l.lng })),
+      ...nearby.slice(0, 3).map((n) => ({ label: n.daycare.name, lat: n.daycare.lat, lng: n.daycare.lng })),
+    ];
+
     return {
-      reachableLines: reachableLines(geo.stationsWithin(point, transitRadiusM, 'operational')),
+      reachableLines: lines,
       transitRadiusM,
+      mapStops,
       daycaresNearby: {
         total: nearby.length,
         cwelcc: nearby.filter((n) => n.daycare.cwelcc).length,

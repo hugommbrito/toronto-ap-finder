@@ -32,6 +32,34 @@ export function walkingRouteUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=walking`;
 }
 
+/**
+ * Google Maps caps waypoints at three on mobile browsers (nine elsewhere). The link is read
+ * on a phone, so three is the real limit — asking for more produces a link that breaks in
+ * exactly the place it is used.
+ */
+export const MAX_MAP_STOPS = 3;
+
+/**
+ * One map showing the listing and everything that matters around it.
+ *
+ * Built as a round trip — the listing is both origin and destination — because the route is
+ * beside the point. What the reader wants is every pin on one map at once: how the daycares
+ * and the station sit relative to the front door, which no list of distances conveys.
+ */
+export function overviewMapUrl(
+  home: { lat: number; lng: number },
+  stops: { lat: number; lng: number }[],
+): string | null {
+  const chosen = stops.slice(0, MAX_MAP_STOPS);
+  if (chosen.length === 0) return null;
+  const point = (p: { lat: number; lng: number }): string => `${p.lat}%2C${p.lng}`;
+  const waypoints = chosen.map(point).join('%7C');
+  return (
+    `https://www.google.com/maps/dir/?api=1&origin=${point(home)}&destination=${point(home)}` +
+    `&waypoints=${waypoints}&travelmode=walking`
+  );
+}
+
 function walkMinutes(metres: number): number {
   // ~80 m/min is a normal walking pace; good enough to make a distance legible.
   return Math.max(1, Math.round(metres / 80));
@@ -123,6 +151,9 @@ export function buildMessage(payload: NotificationPayload): string {
     lines.push('', `⚠️ not stated in the ad: ${escapeHtml(fields)} — worth checking`);
   }
 
-  lines.push('', `<a href="${escapeHtml(listing.url)}">view listing</a>`);
+  const overview = here ? overviewMapUrl(here, payload.mapStops) : null;
+  const links = [`<a href="${escapeHtml(listing.url)}">view listing</a>`];
+  if (overview) links.push(`<a href="${overview}">map of the area</a>`);
+  lines.push('', links.join('  ·  '));
   return lines.join('\n');
 }

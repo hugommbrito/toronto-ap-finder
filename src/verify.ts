@@ -176,6 +176,7 @@ async function main(): Promise<void> {
             availableFrom: null,
             requireParking: false,
             minDaycaresWithin: null,
+            allowSplitDwelling: true,
             maxTransitWalkM: 600,
             cities: ['Toronto'],
           },

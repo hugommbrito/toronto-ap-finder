@@ -15,6 +15,7 @@ export const verdictSchema = z.object({
   bedrooms: z.number().int().min(0).max(12),
   dens: z.number().int().min(0).max(5),
   isEntireUnit: z.boolean(),
+  isSplitDwelling: z.boolean(),
   confidence: z.enum(['high', 'medium', 'low']),
   evidence: z.string(),
   notes: z.string(),
@@ -34,6 +35,11 @@ const VERDICT_JSON_SCHEMA = {
       description:
         'True when a self-contained unit is for rent. False when what is for rent is a room, a shared space, or a bed in a home someone else occupies.',
     },
+    isSplitDwelling: {
+      type: 'boolean',
+      description:
+        'True when the unit is one part of a house divided into separately-rented homes, so another household occupies the rest — a main-floor unit with the basement let separately, a basement apartment, an upper unit. False for a whole house let entirely, and for an apartment or condo in a purpose-built building.',
+    },
     confidence: {
       type: 'string',
       enum: ['high', 'medium', 'low'],
@@ -49,7 +55,7 @@ const VERDICT_JSON_SCHEMA = {
       description: 'Anything else that contradicts the structured fields, in one sentence. Empty string if nothing.',
     },
   },
-  required: ['bedrooms', 'dens', 'isEntireUnit', 'confidence', 'evidence', 'notes'],
+  required: ['bedrooms', 'dens', 'isEntireUnit', 'isSplitDwelling', 'confidence', 'evidence', 'notes'],
   additionalProperties: false,
 } as const;
 
@@ -70,6 +76,8 @@ export type VerificationResult =
 const SYSTEM_PROMPT = `You read Toronto rental advertisements and report what is actually for rent.
 
 The listing site's structured fields are unreliable in two specific ways. They describe the whole property, so a room advertised inside a three-bedroom house still reports three bedrooms. And landlords inflate the bedroom dropdown to appear in more searches, so a one-bedroom-plus-den is often filed as a two-bedroom.
+
+Toronto houses are routinely split into separately-rented homes — a main-floor unit with the basement let to someone else, or the basement on its own. The title often says so ("MAIN - 184 Rosemount", "BASEMENT - 300 South Kingsway"), and the body gives it away with shared laundry, a separate entrance, or a floor named as the whole unit. A purpose-built apartment or condo is not a split dwelling, however many units the building holds.
 
 Report the unit as the advertisement's own prose describes it. Where the prose says nothing about the layout, say so through low confidence and an empty evidence quote rather than repeating the structured figures back.`;
 

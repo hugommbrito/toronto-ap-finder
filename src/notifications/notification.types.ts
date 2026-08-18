@@ -22,6 +22,11 @@ export interface NotificationPayload {
   daycaresNearby: { total: number; cwelcc: number; radiusM: number };
   /** The one she would actually walk to. Named, because "3 nearby" is not an address. */
   nearestDaycare: { name: string; distanceM: number; cwelcc: boolean; lat: number; lng: number } | null;
+  /**
+   * Points to plot on the overview map, nearest first: the reachable stations and the
+   * closest toddler daycares. Trimmed to what a phone will actually render.
+   */
+  mapStops: { label: string; lat: number; lng: number }[];
   /** Send a location pin after the message. */
   includeMap: boolean;
   /**

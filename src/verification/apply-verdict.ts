@@ -1,4 +1,5 @@
 import type { TriageListing } from '@/listings/listing.types';
+import type { TenantProfile } from '@/profiles/profile.schema';
 import type { Verdict } from './listing-verifier';
 
 export interface VerdictOutcome {
@@ -26,7 +27,11 @@ export interface VerdictOutcome {
  * A room rental is rejected outright regardless of bedroom count: "3 bedrooms" is true of the
  * house and irrelevant to the person renting one room in it.
  */
-export function applyVerdict(listing: TriageListing, verdict: Verdict): VerdictOutcome {
+export function applyVerdict(
+  listing: TriageListing,
+  verdict: Verdict,
+  profile: TenantProfile,
+): VerdictOutcome {
   if (verdict.confidence === 'low') {
     return { listing, reject: null, applied: false, note: null };
   }
@@ -40,6 +45,18 @@ export function applyVerdict(listing: TriageListing, verdict: Verdict): VerdictO
       },
       applied: true,
       note: 'advertised unit is a room or shared space, not a self-contained home',
+    };
+  }
+
+  if (verdict.isSplitDwelling && !profile.hard.allowSplitDwelling) {
+    return {
+      listing,
+      reject: {
+        reason: 'split_dwelling',
+        detail: { evidence: verdict.evidence, notes: verdict.notes, confidence: verdict.confidence },
+      },
+      applied: true,
+      note: 'part of a house let in separate units — another household occupies the rest',
     };
   }
 

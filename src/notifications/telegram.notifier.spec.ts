@@ -53,6 +53,7 @@ function payload(chatIds: string[]): NotificationPayload {
     fingerprint: 'fp-abcdef123456',
     profileId: profile.id,
     chatIds,
+    mapStops: [{ label: 'A station', lat: 43.71, lng: -79.41 }],
     includeMap: false,
     listing: {
       source: 'kijiji', sourceId: '1', url: 'https://example.com/1', title: 'A unit', rawText: null,

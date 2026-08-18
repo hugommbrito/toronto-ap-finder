@@ -25,6 +25,8 @@ export const listingVerifications = pgTable(
     dens: integer('dens'),
     /** False for a room, a shared space, or a bed in someone else's home. */
     isEntireUnit: boolean('is_entire_unit'),
+    /** True when the unit is one part of a house split among separate households. */
+    isSplitDwelling: boolean('is_split_dwelling'),
     confidence: text('confidence').$type<VerificationConfidence>(),
     /** The phrase the verdict rests on — the whole point of the audit trail. */
     evidence: text('evidence'),

@@ -43,6 +43,15 @@ export const hardFiltersSchema = z.object({
       ageGroup: z.enum(['infant', 'toddler', 'preschool', 'kindergarten', 'schoolage']),
     })
     .nullable(),
+  /**
+   * Reject a unit that is one part of a house split among separate households — a main-floor
+   * unit with the basement let to someone else, or that basement on its own.
+   *
+   * A judgement about living arrangements, not about the building: shared entrance, shared
+   * laundry, and a neighbour through the floor. Verified from the advertisement text, so it
+   * only takes effect where listing verification is configured.
+   */
+  allowSplitDwelling: z.boolean().default(true),
   maxTransitWalkM: z.number().positive().nullable(),
   cities: z.array(z.string()).min(1),
 });

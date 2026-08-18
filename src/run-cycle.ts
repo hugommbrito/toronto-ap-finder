@@ -58,18 +58,24 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   // Re-score what is already collected, with no requests to the source at all.
   const fromStored = process.argv.includes('--stored');
+  // Deliberately verbose to type: this bypasses a setting the tenant chose.
+  const ignoreQuietHours = process.argv.includes('--ignore-quiet-hours');
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['log', 'warn', 'error'] });
   try {
     const pipeline = app.get(PipelineService);
+    if (ignoreQuietHours) {
+      new Logger('run-cycle').warn('--ignore-quiet-hours: sending regardless of the profile window');
+    }
     const mode = fromStored ? 'stored corpus, no network' : 'live';
     new Logger('run-cycle').log(`starting cycle (${mode})${dryRun ? ' (dry run — nothing will be sent)' : ''}`);
     const report = fromStored
-      ? await pipeline.runFromStored({ dryRun })
+      ? await pipeline.runFromStored({ dryRun, ignoreQuietHours })
       : await pipeline.runCycle({
           maxPages: arg('pages', 5),
               hydrationBudget: arg('hydrate', 20),
           recheckBudget: arg('recheck', 3),
           dryRun,
+          ignoreQuietHours,
         });
     printReport(report);
   } finally {
