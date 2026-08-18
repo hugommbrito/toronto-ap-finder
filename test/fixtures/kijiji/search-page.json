@@ -1,0 +1,1956 @@
+{
+ "props": {
+  "pageProps": {
+   "__APOLLO_STATE__": {
+    "ROOT_QUERY": {
+     "__typename": "Query",
+     "searchResultsPageByUrl:/b-apartments-condos/city-of-toronto/c37l1700273": {
+      "__typename": "SearchResultsPage",
+      "pagination": {
+       "__typename": "Pagination",
+       "offset": 0,
+       "limit": 40,
+       "totalCount": 7941
+      }
+     }
+    },
+    "RealEstateListing:1742159443": {
+     "__typename": "RealEstateListing",
+     "id": "1742159443",
+     "title": "Brand New Luxury Condo | 2 Beds + Den | Corner Suite",
+     "description": "️ Brand New Luxury Condo | 2 Beds + Den | Corner Suite | Parking + Locker Included ✨ 2 Beds + Den ✨ Be the very first to call this stunning southwest-facing corner suite home! This brand new, never ...",
+     "imageCount": 10,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/71/71bf01c3-e98b-402d-9112-e945b498f84d?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/e0/e0413700-3548-4b1e-9070-9ad01d5638e2?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/7c/7c1b9b87-ab1a-4474-8ea7-cf93acf1cf85?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/7f/7f60e394-55af-4f90-bf15-b16d8f01cfe9?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/db/dbb8a54c-0e98-4b25-9515-4f5cf8d67a44?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/brand-new-luxury-condo-2-beds-den-corner-suite/1742159443",
+     "activationDate": "2026-08-17T17:36:56.000Z",
+     "sortingDate": "2026-08-17T17:36:56.000Z",
+     "adSource": "ORGANIC",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "Toronto",
+      "address": "Eglinton Ave E, North York, ON M3C 0S1",
+      "distance": null,
+      "nearestIntersection": [
+       "Eglinton Avenue East",
+       "Don Mills Road"
+      ],
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.72119,
+       "longitude": -79.33976
+      },
+      "neighbourhoodInfo": {
+       "__ref": "NeighbourhoodInfo:g10_dpz8dxgw"
+      }
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 300000,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": false,
+      "topAd": false,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": null,
+      "virtualTour": false
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "77555593",
+      "rating": null,
+      "verified": false
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dateavailable",
+        "canonicalValues": [
+         "2026-08-17T00:00:00Z"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "20"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "2.5"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "ownr"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "condo"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "946"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "2"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "0"
+        ]
+       }
+      ]
+     }
+    },
+    "RealEstateListing:1742163176": {
+     "__typename": "RealEstateListing",
+     "id": "1742163176",
+     "title": "3 Bedroom Basement For Rent",
+     "description": "Near by York University, Bus & Subway Station, Shopping Center and public park. Between Allen Rd .and Sheppard Ave W. Including: (1) 3 bed rooms (2) 1 Bath room (3) Laundry in unit (4) Kitchen room ...",
+     "imageCount": 9,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/7b/7b0337a2-65d5-4eb7-b111-e0d1e0fc6562?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/96/9657ad24-a7d9-49da-9239-b4c9185d3d82?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/5e/5ee44708-d88e-45f0-8914-3bacac1c412a?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/f2/f215480b-9d83-48d5-876d-67841bc224c2?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/dc/dc52d98c-98de-4946-b7a5-d3f9e60598fa?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/3-bedroom-basement-for-rent/1742163176",
+     "activationDate": "2026-08-17T18:50:02.000Z",
+     "sortingDate": "2026-08-17T18:50:02.000Z",
+     "adSource": "ORGANIC",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "Toronto",
+      "address": "North York, ON M3H 3T6",
+      "distance": null,
+      "nearestIntersection": [
+       "Wilson Heights Boulevard",
+       "Cocksfield Avenue"
+      ],
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.75304,
+       "longitude": -79.45545
+      },
+      "neighbourhoodInfo": {
+       "__ref": "NeighbourhoodInfo:g10_dpz2zzju"
+      }
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 225000,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": false,
+      "topAd": false,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": null,
+      "virtualTour": false
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "1011560809",
+      "rating": null,
+      "verified": false
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dateavailable",
+        "canonicalValues": [
+         "2026-10-01T00:00:00Z"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "3"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "ownr"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "basement-apartment"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "950"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "2"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "1"
+        ]
+       }
+      ]
+     }
+    },
+    "RealEstateListing:1630118945": {
+     "__typename": "RealEstateListing",
+     "id": "1630118945",
+     "title": "Renovated 2 Bdm.  Apt. for Rent in Toronto's Danforth Village!",
+     "description": "Live well at Main Square Apartments; perfectly located at Danforth and Main, surrounded by convenience! Need daycare? The Main Square Daycare is located on-site. Danforth Village is a shopper's ...",
+     "imageCount": 10,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/b9/b9ce2589-bf80-4b58-9340-40b101d169f7?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/5a/5a4f7218-b790-4da7-b34c-a236d9b764e6?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/37/375459a3-acee-4e77-997b-8f186f09f9ec?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/13/1339480c-5a61-4807-97b4-beb43baf131a?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/7b/7b6b747f-d26c-42f8-95cf-6c39d271bd9e?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/89/8992bf4b-c424-4e4c-89fe-e25975d37dca?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/76/763a68dd-cfca-40a3-ab90-487416791402?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/94/9407c1b8-d8f2-4ec4-b955-2aa2410eb49e?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/79/7995a2e1-f899-44ef-acc7-3cf161be3f70?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/ec/ecd92d53-9150-45f6-8fc9-dbd37dde0f13?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/renovated-2-bdm-apt-for-rent-in-torontos-danforth-village/1630118945",
+     "activationDate": "2022-08-23T09:00:46.000Z",
+     "sortingDate": "2026-08-11T00:32:33.000Z",
+     "adSource": "TOP_AD",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "City of Toronto",
+      "address": "2575 Danforth Avenue, Toronto, ON, M4C 1L5",
+      "distance": null,
+      "nearestIntersection": [
+       "Danforth Avenue",
+       "Barrington Avenue"
+      ],
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.68836,
+       "longitude": -79.30013
+      },
+      "neighbourhoodInfo": null
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 220000,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": true,
+      "topAd": true,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": true,
+      "virtualTour": true
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "90184194",
+      "rating": null,
+      "verified": false
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "2"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "reprofessional"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "apartment"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "rentalsvirtualoptions",
+        "canonicalValues": [
+         "onlineapplication",
+         "videochat",
+         "virtualtour"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "srpLogoUrl",
+        "canonicalValues": [
+         "https://media.kijiji.ca/api/v1/ca-prod-statics/images/0f/0fdd7093-fdcc-4adb-834a-4a017ce50bab?rule=kijijica-60-jpg"
+        ]
+       }
+      ]
+     }
+    },
+    "RealEstateListing:1739230079": {
+     "__typename": "RealEstateListing",
+     "id": "1739230079",
+     "title": "1 BEDROOM APARTMENT FOR RENT",
+     "description": "SUITE FEATURES: Large & bright 1 bedroom apartment Renovated suite All suites have balconies Hardwood floors New or modern fridges and stoves LOCATION: North of Sheppard Avenue on the west side of ...",
+     "imageCount": 10,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/3e/3edcdb4a-e979-4b5f-814a-9c7ce5914db1?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/8e/8e4a770e-f0e4-424b-a58d-aeb457080b84?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/4c/4c02db51-5289-4d72-92f4-b44b26be5205?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/5d/5de237b9-73e7-46c6-bc91-20b559ee9a9b?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/fd/fd1012b9-beb2-4674-a8ec-e928454bdbfb?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/1-bedroom-apartment-for-rent/1739230079",
+     "activationDate": "2026-06-15T17:16:11.000Z",
+     "sortingDate": "2026-08-17T13:25:27.000Z",
+     "adSource": "TOP_AD",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "City of Toronto",
+      "address": "2770 Jane Street, Toronto, ON, M3N 2J1",
+      "distance": null,
+      "nearestIntersection": [
+       "Jane Street",
+       "Grandravine Drive"
+      ],
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.7474,
+       "longitude": -79.51596
+      },
+      "neighbourhoodInfo": null
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 182500,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": false,
+      "topAd": true,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": true,
+      "virtualTour": false
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "1043305051",
+      "rating": null,
+      "verified": false
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "reprofessional"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "apartment"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "srpLogoUrl",
+        "canonicalValues": [
+         "https://media.kijiji.ca/api/v1/ca-prod-statics/images/ec/ec212487-8b2a-453f-b333-fbfb12e6c165?rule=kijijica-60-jpg"
+        ]
+       }
+      ]
+     }
+    },
+    "RealEstateListing:1692454390": {
+     "__typename": "RealEstateListing",
+     "id": "1692454390",
+     "title": "Renovated 1 Bedroom  + Den Apt.  for Rent in Danforth Village",
+     "description": "Live well at Main Square Apartments; perfectly located at Danforth and Main, surrounded by convenience! Need daycare? The Main Square Daycare is located on-site. Danforth Village is a shopper's ...",
+     "imageCount": 13,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/8c/8ceb0d56-8921-49d1-b375-e8004fcc0852?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/25/255b8b80-8d2e-46ed-a724-2d5821c9877b?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/c6/c68c4b63-966b-44b0-8dbb-3b74eef43e69?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/0f/0f1ad9d9-ac02-42a8-8dca-966fa89a7d7d?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/e3/e3901e99-6cc8-40f1-a30b-6e5256bf4f4c?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/94/941cb5ce-db6e-42a1-8134-3c16be0dadb4?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/17/172b4165-4a42-47b9-acb5-f7824596645b?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/cf/cfb997bd-f3af-43c5-b710-f8a237fedb43?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/6b/6b411564-14a8-43c8-b32a-6b866519d809?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/a7/a7b562df-2963-4849-a171-494e1c1cb81d?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/a0/a0de8d6f-284d-40bf-ac40-12169188dc47?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/76/76c08eff-199e-4455-b74e-1000ba8a3c1b?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/8d/8d1ce93c-3fdc-4151-b916-df70a58d2c90?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/renovated-1-bedroom-den-apt-for-rent-in-danforth-village/1692454390",
+     "activationDate": "2024-05-03T15:03:44.000Z",
+     "sortingDate": "2026-07-22T00:27:36.000Z",
+     "adSource": "TOP_AD",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "Toronto",
+      "address": "2575 Danforth Avenue, Toronto, ON, M4C 1L5",
+      "distance": null,
+      "nearestIntersection": null,
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.68814,
+       "longitude": -79.30031
+      },
+      "neighbourhoodInfo": null
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 195000,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": true,
+      "topAd": true,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": true,
+      "virtualTour": true
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "90184194",
+      "rating": null,
+      "verified": false
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "1.5"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "reprofessional"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "apartment"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "rentalsvirtualoptions",
+        "canonicalValues": [
+         "onlineapplication",
+         "videochat",
+         "virtualtour"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "srpLogoUrl",
+        "canonicalValues": [
+         "https://media.kijiji.ca/api/v1/ca-prod-statics/images/0f/0fdd7093-fdcc-4adb-834a-4a017ce50bab?rule=kijijica-60-jpg"
+        ]
+       }
+      ]
+     }
+    },
+    "RealEstateListing:1740135447": {
+     "__typename": "RealEstateListing",
+     "id": "1740135447",
+     "title": "YONGE / FINCH –Prime Location BSMT Bachelor Own Kitchen & Bath",
+     "description": "CURRENT PHOTOS. SUPER CLEAN. Students and professionals welcome. Please read entire AD before responding. Kijiji Verified – Call/text 416-830-2629 to arrange in-person viewing. Bachelor Basement Unit ...",
+     "imageCount": 10,
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/87/8704aec5-2046-471a-8c70-827b50963a1d?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/f2/f275a6f8-da75-4b17-93f8-fa514c569ad4?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/6b/6b554454-1393-42d0-ba55-80a6caddb131?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/91/916769c7-e274-4330-a0a3-e8c1a0544268?rule=kijijica-200-jpg",
+      "https://media.kijiji.ca/api/v1/ca-prod-fsbo-ads/images/f2/f2a65900-0a58-4af6-bb35-07b303fa7b85?rule=kijijica-200-jpg"
+     ],
+     "categoryId": 37,
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/yonge-finch-prime-location-bsmt-bachelor-own-kitchen-bath/1740135447",
+     "activationDate": "2026-07-04T21:45:51.000Z",
+     "sortingDate": "2026-08-12T03:47:39.000Z",
+     "adSource": "TOP_AD",
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "id": 1700273,
+      "name": "Toronto",
+      "address": "Olive Ave, North York, ON M2N 5S4, Canada",
+      "distance": null,
+      "nearestIntersection": [
+       "Yonge Street",
+       "Tolman Street"
+      ],
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.77879,
+       "longitude": -79.41484
+      },
+      "neighbourhoodInfo": {
+       "__ref": "NeighbourhoodInfo:g10_dpz90bq5"
+      }
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 129000,
+      "originalAmount": null
+     },
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "priceDrop": false,
+      "showcase": false,
+      "topAd": true,
+      "highlight": false,
+      "shippedBySeller": null,
+      "isPromotionProvTopAd": null,
+      "isPromotionTopAd": true,
+      "virtualTour": false
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "47180888",
+      "rating": 5,
+      "verified": true
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dateavailable",
+        "canonicalValues": [
+         "2026-09-01T00:00:00Z"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "ownr"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "apartment"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [
+         "400"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "1"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ]
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "1"
+        ]
+       }
+      ]
+     }
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": false,
+    "sourceMap": false,
+    // Shares a tsbuildinfo with the root config otherwise, which makes tsc skip emitting
+    // files it believes are already up to date in the *previous* output directory.
+    "incremental": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.spec.ts", "drizzle.config.ts"]
+}

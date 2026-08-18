@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786996341628,
+      "tag": "0000_military_dormammu",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786996351953,
+      "tag": "0001_postgis",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787017846187,
+      "tag": "0002_multi_recipient",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787018023277,
+      "tag": "0003_posted_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787019769413,
+      "tag": "0004_listing_verifications",
+      "breakpoints": true
+    }
+  ]
+}

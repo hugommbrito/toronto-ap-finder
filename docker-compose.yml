@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: rental-monitor-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rental}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rental}
+      POSTGRES_DB: ${POSTGRES_DB:-rental_monitor}
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - rental-monitor-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-rental} -d ${POSTGRES_DB:-rental_monitor}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rental-monitor-pgdata:

@@ -1,0 +1,104 @@
+import type { NotificationPayload } from './notification.types';
+
+/** Telegram HTML mode only allows a small tag set; everything else must be escaped. */
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function money(n: number): string {
+  return n.toLocaleString('en-CA', { maximumFractionDigits: 0 });
+}
+
+function layoutLabel(beds: number | null, dens: number): string {
+  if (beds === null) return 'layout unknown';
+  const bedPart = `${beds} bed${beds === 1 ? '' : 's'}`;
+  return dens > 0 ? `${bedPart} + den` : bedPart;
+}
+
+function walkMinutes(metres: number): number {
+  // ~80 m/min is a normal walking pace; good enough to make a distance legible.
+  return Math.max(1, Math.round(metres / 80));
+}
+
+/**
+ * The message body.
+ *
+ * The score breakdown is not decoration — it is the instrument for calibrating the weights
+ * in the first weeks, so it travels with every notification rather than living only in the
+ * database.
+ */
+export function buildMessage(payload: NotificationPayload): string {
+  const { listing, score } = payload;
+  const lines: string[] = [];
+
+  lines.push(
+    `🏠 <b>${Math.round(score.score)}</b> · ${escapeHtml(listing.title.slice(0, 90))}`,
+    '',
+  );
+
+  const parkingNote =
+    listing.parkingIncluded === true
+      ? 'parking included'
+      : listing.parkingCost !== null
+        ? `+ parking ${money(listing.parkingCost)}`
+        : listing.parkingIncluded === false
+          ? 'no parking'
+          : 'parking not stated';
+  lines.push(`<b>CAD ${money(listing.totalMonthlyCost)}</b>/month · base ${money(listing.rentBase)} · ${parkingNote}`);
+
+  const features = [layoutLabel(listing.beds, listing.dens)];
+  if (listing.baths !== null) features.push(`${listing.baths} bath`);
+  if (listing.hasLocker === true) features.push('locker');
+  if (listing.inSuiteLaundry === true) features.push('in-suite laundry');
+  lines.push(escapeHtml(features.join(' · ')));
+
+  if (listing.utilitiesIncluded.length > 0) {
+    lines.push(escapeHtml(`utilities included: ${listing.utilitiesIncluded.join(', ')}`));
+  }
+  lines.push('');
+
+  if (listing.address) lines.push(`📍 ${escapeHtml(listing.address)}`);
+
+  if (payload.reachableLines.length === 0) {
+    // The case worth shouting about: a listing can score well on everything else and still
+    // have no rapid transit at all. Toronto streetcars are not in the index by design.
+    lines.push(`🚇 no subway or LRT within ${payload.transitRadiusM} m`);
+  } else {
+    const [first, ...rest] = payload.reachableLines;
+    lines.push(
+      `🚇 ${escapeHtml(first!.line)} — ${escapeHtml(first!.station)}, ` +
+        `${Math.round(first!.distanceM)} m (~${walkMinutes(first!.distanceM)} min)`,
+    );
+    for (const l of rest) {
+      lines.push(
+        `    ${escapeHtml(l.line)} — ${escapeHtml(l.station)}, ` +
+          `${Math.round(l.distanceM)} m (~${walkMinutes(l.distanceM)} min)`,
+      );
+    }
+  }
+  const { total, cwelcc, radiusM } = payload.daycaresNearby;
+  lines.push(`👶 ${total} toddler daycare${total === 1 ? '' : 's'} within ${radiusM} m — ${cwelcc} with CWELCC`);
+  if (payload.nearestDaycare) {
+    const { name, distanceM, cwelcc: isCwelcc } = payload.nearestDaycare;
+    const tag = isCwelcc ? ' · CWELCC' : '';
+    lines.push(
+      `    closest: ${escapeHtml(name)} — ${Math.round(distanceM)} m, ~${walkMinutes(distanceM)} min${tag}`,
+    );
+  }
+  if (listing.buildingBuiltBefore2018 === true) lines.push('🏛 pre-2018 building — rent increases capped');
+  lines.push('');
+
+  const breakdown = Object.entries(score.breakdown)
+    .sort(([, a], [, b]) => b - a)
+    .map(([name, points]) => `${name.padEnd(20)}${points.toFixed(1).padStart(5)}`)
+    .join('\n');
+  lines.push(`<b>Score ${score.score.toFixed(1)}</b>`, `<code>${escapeHtml(breakdown)}</code>`);
+
+  if (payload.unverified.length > 0) {
+    const fields = payload.unverified.map((r) => r.field).join(', ');
+    lines.push('', `⚠️ not stated in the ad: ${escapeHtml(fields)} — worth checking`);
+  }
+
+  lines.push('', `<a href="${escapeHtml(listing.url)}">view listing</a>`);
+  return lines.join('\n');
+}

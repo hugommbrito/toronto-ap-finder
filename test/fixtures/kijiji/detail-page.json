@@ -1,0 +1,482 @@
+{
+ "props": {
+  "pageProps": {
+   "__APOLLO_STATE__": {
+    "RealEstateListing:1739230079": {
+     "__typename": "RealEstateListing",
+     "activationDate": "2026-06-15T17:16:11.000Z",
+     "adSource": "ORGANIC",
+     "productUrl": null,
+     "externalSource": {
+      "__typename": "ExternalListingSource",
+      "sourceProviderId": "9001"
+     },
+     "attributes": {
+      "__typename": "RealEstateListingAttributes",
+      "all": [
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "storagelocker",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Storage Space"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "smokingpermitted",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Smoking Permitted"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "airconditioning",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Air Conditioning"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "unittype",
+        "canonicalValues": [
+         "apartment"
+        ],
+        "values": [
+         "Apartment"
+        ],
+        "name": "Unit Type"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "bicycleparking",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Bicycle Parking"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "elevator",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Elevator in Building"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "agreementtype",
+        "canonicalValues": [
+         "one-year"
+        ],
+        "values": [
+         "1 Year"
+        ],
+        "name": "Agreement Type"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "gym",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Gym"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "audioprompts",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Audio Prompts"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "visualaids",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Visual Aids"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "cabletv",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Cable / TV"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "heat",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Heat"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "dishwasher",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Dishwasher"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "petsallowed",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Pet Friendly"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "braillelabels",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Braille Labels"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbathrooms",
+        "canonicalValues": [
+         "10"
+        ],
+        "values": [
+         "1"
+        ],
+        "name": "Bathrooms"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "water",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Water"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberbedrooms",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "1"
+        ],
+        "name": "Bedrooms"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinunit",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Laundry (In Unit)"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "furnished",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Furnished"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "numberparkingspots",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "0"
+        ],
+        "name": "Parking Included"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "balcony",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Balcony"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "hydro",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Hydro"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "internet",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Internet"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "concierge",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Concierge"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "fridgefreezer",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Fridge / Freezer"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "wheelchairaccessible",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Wheelchair accessible"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "yard",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Yard"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "twentyfourhoursecurity",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "24 Hour Security"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "laundryinbuilding",
+        "canonicalValues": [
+         "1"
+        ],
+        "values": [
+         "Yes"
+        ],
+        "name": "Laundry (In Building)"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "areainfeet",
+        "canonicalValues": [],
+        "values": [
+         "0"
+        ],
+        "name": "Size (sqft)"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "barrierfreeentrancesandramps",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Barrier-free Entrances and Ramps"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "forrentbyhousing",
+        "canonicalValues": [
+         "reprofessional"
+        ],
+        "values": [
+         "Professional"
+        ],
+        "name": "For Rent By"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "accessiblewashroomsinsuite",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Accessible Washrooms in Suite"
+       },
+       {
+        "__typename": "ListingAttributeV2",
+        "canonicalName": "pool",
+        "canonicalValues": [
+         "0"
+        ],
+        "values": [
+         "No"
+        ],
+        "name": "Pool"
+       }
+      ]
+     },
+     "categoryId": 37,
+     "description": "<p><b>SUITE FEATURES:</b></p><ul><li>Large & bright 1 bedroom apartment</li><li>Renovated suite</li><li>All suites have balconies</li><li>Hardwood floors</li><li>New or modern fridges and stoves</li></ul><p><b>LOCATION:</b></p><ul><li>North of Sheppard Avenue on the west side of Jane Street</li></ul><p><b>LOCATION CONVENIENCES:</b></p><ul><li>TTC at your door</li><li>Easy access to Highways 401 & 400</li><li>Next door to medical walk-in clinic and pharmacy</li><li>Close to 3 shopping centers</li><li>Close to schools</li><li>Near a large green space called Downsview Dells</li></ul><p><b>BUILDING AMENITIES:</b></p><ul><li>Charming 4 storey walk-up in a quiet residential neighborhood</li><li>Well maintained park-like grounds</li><li>24 hour on site staff</li><li>Controlled keyless access</li><li>Security video surveillance</li><li>Underground and outdoor parking</li><li>On-site laundry facilities</li><li>Elevators</li></ul>",
+     "flags": {
+      "__typename": "RealEstateListingFlags",
+      "categorySpecificBadge": false,
+      "highlight": false,
+      "hpGallery": null,
+      "topAd": true,
+      "priceDrop": false,
+      "showcase": false,
+      "isFromAutosDealer": false,
+      "isFromDealer": false,
+      "isMoVe": false,
+      "isPint": true,
+      "isSM360": false,
+      "isVerticalCategory": true,
+      "comfree": false
+     },
+     "id": "1739230079",
+     "imageUrls": [
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/3e/3edcdb4a-e979-4b5f-814a-9c7ce5914db1?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/8e/8e4a770e-f0e4-424b-a58d-aeb457080b84?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/4c/4c02db51-5289-4d72-92f4-b44b26be5205?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/5d/5de237b9-73e7-46c6-bc91-20b559ee9a9b?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/fd/fd1012b9-beb2-4674-a8ec-e928454bdbfb?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/ea/ea3dcd26-661c-478c-8a3d-6db34c7ea9a8?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/2a/2a2bc0a0-f759-46b8-b6a4-a9a3caefaceb?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/59/59424fb1-db1d-4b99-96f1-a5611bf1398b?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/31/313ff18e-d635-4801-9077-e3ade8aa2ae0?rule=kijijica-640-webp",
+      "https://media.kijiji.ca/api/v1/ca-prod-dealer-ads/images/af/af2931d9-416c-4264-b441-4be97944fc1d?rule=kijijica-640-webp"
+     ],
+     "location": {
+      "__typename": "RealEstateListingLocation",
+      "showPinOnMap": true,
+      "address": "2770 Jane Street, Toronto, ON, M3N 2J1",
+      "coordinates": {
+       "__typename": "LocationCoordinates",
+       "latitude": 43.7474,
+       "longitude": -79.51596
+      },
+      "id": 1700273,
+      "name": "City of Toronto",
+      "neighbourhoodInfo": {
+       "__ref": "NeighbourhoodInfo:g10_dpz2yesh"
+      }
+     },
+     "posterInfo": {
+      "__typename": "PosterInfo",
+      "posterId": "1043305051",
+      "sellerType": "KMB",
+      "websiteUrl": null,
+      "phoneNumber": "416744xxxx",
+      "verified": false
+     },
+     "price": {
+      "__typename": "StandardAmountPrice",
+      "type": "FIXED",
+      "amount": 182500,
+      "currency": "CAD",
+      "originalAmount": null
+     },
+     "sortingDate": "2026-08-17T13:25:27.000Z",
+     "title": "1 BEDROOM APARTMENT FOR RENT",
+     "type": "OFFER",
+     "url": "https://www.kijiji.ca/v-apartments-condos/city-of-toronto/1-bedroom-apartment-for-rent/1739230079",
+     "metrics": {
+      "__typename": "ListingMetrics",
+      "views": 1521
+     },
+     "youtubeVideoId": null,
+     "status": "ACTIVE",
+     "endDate": "3000-01-01T00:00:00.000Z",
+     "virtualTourUrl": null,
+     "mlsAd": false,
+     "requestViewingUrl": null,
+     "rentalBadge": null
+    }
+   }
+  }
+ }
+}
