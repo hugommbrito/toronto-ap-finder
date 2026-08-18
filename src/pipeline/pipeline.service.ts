@@ -4,7 +4,7 @@ import { buildFingerprint } from '@/geo/address';
 import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
-import { ListingsRepository } from '@/listings/listings.repository';
+import { ListingsRepository, MAX_MISSED_SWEEPS } from '@/listings/listings.repository';
 import type { ListingVerificationRow, SourceBuildingRow } from '@/db/schema';
 import type { BuildingEntry } from '@/sources/source.interface';
 import { TelegramNotifier } from '@/notifications/telegram.notifier';
@@ -253,7 +253,7 @@ export class PipelineService {
     }
 
     // --- Stage C: confirm the ones already found are still there ---------------------
-    await this.recheck(source, options.recheckBudget ?? DEFAULT_RECHECK_BUDGET, report);
+    await this.recheck(source, profiles, options.recheckBudget ?? DEFAULT_RECHECK_BUDGET, report);
 
     await this.finish('unit', 'listings', source.name, startedAt, report);
     await this.alertIfPaused(profiles, report);
@@ -450,10 +450,18 @@ export class PipelineService {
    * while remaining perfectly available, so absence proves nothing — only the ad's own
    * status does. Least-recently-confirmed first, so attention spreads evenly.
    */
-  private async recheck(source: UnitListingSource, budget: number, report: CycleReport): Promise<void> {
+  private async recheck(
+    source: UnitListingSource,
+    profiles: TenantProfile[],
+    budget: number,
+    report: CycleReport,
+  ): Promise<void> {
     if (budget <= 0) return;
 
-    for (const row of await this.repo.findForRecheck(budget)) {
+    // Its own source, and only its own. Handing this source another's listing means fetching
+    // that site's URL with this adapter's parser and this adapter's rate limiter — which is
+    // exactly how a Zumper listing came to be reported as Kijiji changing its markup.
+    for (const row of await this.repo.findForRecheck(source.name, budget)) {
       try {
         const detail = await source.fetchDetail(listingFromRow(row));
         report.rechecked += 1;
@@ -469,7 +477,20 @@ export class PipelineService {
           report.errors.push((err as Error).message);
           return;
         }
+        // Count the failure against the listing, so an advertisement we cannot read stops
+        // taking a request every cycle. Never delisted on this basis: being unable to read an
+        // ad is not evidence that the ad is gone.
+        const missed = await this.repo.markRecheckFailed(row.id);
         report.errors.push(`recheck ${row.sourceId}: ${(err as Error).message}`);
+        if (missed >= MAX_MISSED_SWEEPS) {
+          this.logger.warn(`${row.sourceId} retired from re-checking after ${missed} unreadable attempts`);
+          for (const profile of profiles) {
+            await this.repo.recordReviews(profile.id, row.id, [
+              { field: 'status', reason: `could not be re-checked ${missed} times: ${(err as Error).message}` },
+            ]);
+          }
+          report.needsReview += profiles.length;
+        }
       }
     }
   }

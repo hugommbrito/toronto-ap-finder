@@ -272,7 +272,21 @@ re-checking listings it has already surfaced. That is about 25 requests per cycl
 
 **Delisting is confirmed, never presumed.** An ad drops off the first pages within days
 while remaining perfectly available, so absence proves nothing; only the ad's own `status`
-does. The re-check pass asks, least-recently-confirmed first.
+does. The re-check pass asks its **own source's** listings, least-recently-confirmed first.
+
+Both halves of that sentence were false until they were measured in production, and the symptom
+was a lie: every Kijiji cycle failed with *"no `__NEXT_DATA__` script tag — the page structure
+changed"*, which was true of nothing. `findForRecheck` had no source filter, so a Zumper listing
+was fetched from zumper.com by the Kijiji adapter, through Kijiji's rate limiter, and parsed for a
+block Zumper has never had. And `DISTINCT ON (id)` obliges Postgres to sort by `id` first, so
+"least-recently-confirmed" was unreachable: the same random-but-stable uuids came back every
+cycle, which is why one unreadable listing could fail every run indefinitely and why nothing was
+ever confirmed delisted. `EXISTS` states the requirement without the duplicate rows `DISTINCT ON`
+was compensating for, and a failed re-check now counts against `missed_sweeps` — after three it
+leaves the queue and is flagged for review, never marked delisted, because failing to read an
+advertisement is not evidence about the advertisement.
+
+`GET /operations` is what surfaced this. Without it the whole thing reads as a quiet market.
 
 **A paused source alerts once, per source.** Empty cycles look exactly like a quiet market, which
 is the failure most likely to go unnoticed for a week, so a 429 sends a Telegram message and shows

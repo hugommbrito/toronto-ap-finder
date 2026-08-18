@@ -19,6 +19,14 @@ import type { Rejection, Review } from '@/scoring/hard-filters';
 import type { ScoreResult } from '@/scoring/scorer';
 import type { ListingSource, TriageListing } from './listing.types';
 
+/**
+ * Failed re-checks before a listing stops being asked about.
+ *
+ * Three, matching the rate limiter's circuit: enough that a transient failure does not retire a
+ * listing, few enough that a permanently unreadable one stops costing a request every cycle.
+ */
+export const MAX_MISSED_SWEEPS = 3;
+
 export interface StoredListing {
   id: string;
   isNew: boolean;
@@ -134,21 +142,63 @@ export class ListingsRepository {
 
   /**
    * Listings worth re-checking: ones that cleared the filters for some profile and are not
-   * already known gone, least-recently-confirmed first.
+   * already known gone, least-recently-confirmed first, **from one source**.
    *
    * Delisting is confirmed rather than presumed. A listing drops off the first pages within
    * days while remaining perfectly available, so "not seen lately" says nothing — only the
    * ad's own status does. That costs one request each, so the budget is deliberately small.
+   *
+   * Three things here were wrong at once, and they compounded into a permanent failure that
+   * looked like Kijiji changing its markup.
+   *
+   * **The source filter.** There wasn't one. The recheck stage runs against a single unit
+   * source and handed it whatever this returned, so a Zumper listing was fetched from
+   * zumper.com by the Kijiji adapter, through Kijiji's rate limiter, and parsed for a
+   * `__NEXT_DATA__` block Zumper has never had. The error it raised — "the page structure
+   * changed" — was true of nothing.
+   *
+   * **The ordering.** `DISTINCT ON (id)` obliges Postgres to sort by `id` first, so the
+   * documented "least-recently-confirmed" ordering was unreachable: it returned the same
+   * lowest-uuid rows every cycle, forever, and `markStillListed` updating `last_seen_at`
+   * changed nothing. `EXISTS` states the actual requirement — a listing that matched *some*
+   * profile — without duplicating rows, which is what `DISTINCT ON` was compensating for.
+   *
+   * **The dead end.** A listing that cannot be parsed at all was picked again on every cycle.
+   * `missed_sweeps` caps that: after enough failures it leaves the queue rather than blocking
+   * it. It is never marked delisted on that basis — failing to read an ad is not evidence the
+   * ad is gone, and presuming so is exactly what this stage exists to avoid.
    */
-  async findForRecheck(limit: number): Promise<ListingRow[]> {
+  async findForRecheck(source: string, limit: number, maxMissedSweeps = MAX_MISSED_SWEEPS): Promise<ListingRow[]> {
     return this.db
-      .selectDistinctOn([listings.id])
+      .select()
       .from(listings)
-      .innerJoin(matches, eq(matches.listingId, listings.id))
-      .where(isNull(listings.delistedAt))
-      .orderBy(listings.id, listings.lastSeenAt)
-      .limit(limit)
-      .then((rows) => rows.map((r) => r.listings));
+      .where(
+        and(
+          eq(listings.source, source as ListingSource),
+          isNull(listings.delistedAt),
+          sql`${listings.missedSweeps} < ${maxMissedSweeps}`,
+          sql`exists (select 1 from ${matches} where ${matches.listingId} = ${listings.id})`,
+        ),
+      )
+      .orderBy(listings.lastSeenAt)
+      .limit(limit);
+  }
+
+  /**
+   * Records that a re-check could not reach a verdict.
+   *
+   * Deliberately not `markDelisted`: the ad may be perfectly alive and the failure ours. This
+   * only moves the listing towards the back of the queue and, past the cap, out of it — so one
+   * unreadable advertisement cannot consume the budget every cycle and take the whole run down
+   * with it.
+   */
+  async markRecheckFailed(listingId: string): Promise<number> {
+    const [row] = await this.db
+      .update(listings)
+      .set({ missedSweeps: sql`${listings.missedSweeps} + 1` })
+      .where(eq(listings.id, listingId))
+      .returning({ missedSweeps: listings.missedSweeps });
+    return row?.missedSweeps ?? 0;
   }
 
   async markDelisted(listingId: string): Promise<void> {
