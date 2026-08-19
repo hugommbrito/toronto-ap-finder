@@ -73,8 +73,15 @@ built on Rentsync will render its listings client-side from `newapi.lws1.com`, a
 closed for the same reason, without needing to be investigated one at a time.
 
 Rentsync's own inventory is large. Treat a Rentsync marker (`assets.rentsync.com`, `lws1.com`,
-`landlordwebsolutions`) as a strong prior that the operator is closed, and check the API host's
-`robots.txt` before spending anything else.
+`landlordwebsolutions`, a `/scripts/main.js?d=<timestamp>` bundle) as a strong prior that the
+operator is closed, and find the API host before spending anything else.
+
+**Confirmed once, by a different route.** Hazelview Properties is also Rentsync, also renders
+client-side, and is also closed — but from a different host (`lift-api.rentsync.com`) and for a
+different reason: that host's `robots.txt` permits everything, and what closes it is the third
+party `auth_token` its bundle carries. So the prior holds, while the *reason* does not transfer.
+Check each operator's actual API host; do not assume this one's `Disallow: /` speaks for it.
+See `docs/sources/pm_hazelview.md`.
 
 ## What was given up
 

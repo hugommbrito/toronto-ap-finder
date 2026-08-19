@@ -426,7 +426,7 @@ failing. This is where that becomes visible.
 | Rentals.ca | **refused** | `robots.txt` itself sits behind a Cloudflare challenge — see [docs/sources/rentals-ca.md](docs/sources/rentals-ca.md) |
 | CAPREIT | investigated, **green** | 569 properties in one sitemap with `<lastmod>`, 44 in the 416; building pages server-render JSON-LD — see [docs/sources/pm_capreit.md](docs/sources/pm_capreit.md) |
 | Greenwin | **closed** | site renders client-side from `newapi.lws1.com`, whose `robots.txt` is `Disallow: /` — see [docs/sources/pm_greenwin.md](docs/sources/pm_greenwin.md) |
-| Hazelview | **undetermined** | its residential site is CloudFront geo-blocked from Brazil; unmeasured, not refused — see [docs/sources/pm_hazelview.md](docs/sources/pm_hazelview.md) |
+| Hazelview | **closed** | Rentsync again, via `lift-api.rentsync.com` behind a third party's `auth_token`. Both robots files permit us; the credential does not — see [docs/sources/pm_hazelview.md](docs/sources/pm_hazelview.md) |
 
 Zumper runs on its own cron, offset ten minutes from the Kijiji one. Its budget counts
 buildings rather than listings: four opened buildings produced 174 units in one measured run.
