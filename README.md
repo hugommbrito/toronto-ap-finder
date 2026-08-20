@@ -173,7 +173,14 @@ goes missing: `pnpm verify` checks two known addresses inside Scarborough and Ea
 exactly that reason. The worst this filter can do is hold a listing back; it cannot quietly
 deliver the one thing the profile said no to.
 
-Areas are data like everything else:
+Areas are data like everything else. On a deployment, `excludeAreas` is a field that did
+not exist when the row was seeded, so it is added with the sync tool below:
+
+```
+node dist/profiles/sync-profile.js --apply
+```
+
+Or, where there is a `psql`:
 
 ```sql
 UPDATE profiles
@@ -195,6 +202,21 @@ UPDATE profiles
 SET soft = jsonb_set(soft, '{weights,daycareProximity}', '25')
 WHERE id = 'sister';
 ```
+
+There is no `psql` in the deployment — the runtime image is `node:22-alpine` with the
+production dependencies and `dist/` — so a **structural** change, a field the stored row
+does not have at all, goes through:
+
+```
+node dist/profiles/sync-profile.js            # dry run: says what it would do
+node dist/profiles/sync-profile.js --apply     # adds only the keys the row is missing
+node dist/profiles/sync-profile.js --apply --overwrite hard.cities
+```
+
+It splits the two cases `pnpm seed --force-profiles` conflates. A key the row does not have
+is a field added in code, with no tuning to lose, so it is added. A key that exists and
+disagrees is tuning or a decision, and is left exactly as it is unless named with
+`--overwrite`. Keys that exist only in the database are never touched.
 
 `pnpm verify` prints what the current weights are actually worth, in final points:
 
