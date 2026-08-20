@@ -1,5 +1,6 @@
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { cityMatches } from '@/geo/city';
+import { excludedAreaOf } from '@/geo/areas';
 import { evaluateBedroomRule } from './bedroom-rule';
 import type { GeoIndex } from './context';
 
@@ -99,6 +100,21 @@ export function applyHardFilters(
     reviews.push({ field: 'city', reason: 'city could not be determined' });
   } else if (!cityMatches(listing.city, hard.cities)) {
     rejections.push({ reason: 'city', detail: { city: listing.city, allowed: hard.cities } });
+  }
+
+  // --- excluded areas ---
+  // Separate from the city check and unable to be folded into it: the areas that get cut here
+  // are the same municipality as the ones that get kept, so only position can separate them.
+  if (hard.excludeAreas.length > 0) {
+    const verdict = excludedAreaOf(listing, hard.excludeAreas);
+    if (verdict.kind === 'inside') {
+      rejections.push({
+        reason: 'excluded_area',
+        detail: { area: verdict.area, determinedBy: verdict.by, city: listing.city },
+      });
+    } else if (verdict.kind === 'unknown') {
+      reviews.push({ field: verdict.field, reason: verdict.reason });
+    }
   }
 
   // --- availability ---

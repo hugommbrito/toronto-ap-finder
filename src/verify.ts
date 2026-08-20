@@ -162,6 +162,39 @@ async function main(): Promise<void> {
       failures.push('bedroom floor is not behaving: expected 2BR and up to pass, below 2BR to be rejected');
     }
 
+    // --- 3b. the refused areas, against the boundaries actually shipped ---
+    // Worth checking here rather than only in unit tests: this cut depends on
+    // data/seed/municipal-boundaries.json being present in the running container, and its
+    // failure mode is a Scarborough listing quietly arriving on her phone.
+    const refused = sister.hard.excludeAreas;
+    if (refused.length === 0) {
+      console.log('refused areas: none configured\n');
+    } else {
+      // Thorncliffe Park (East York) and 567 Scarborough Golf Club Rd, both inside Toronto
+      // and both labelled as Toronto — the case no city allowlist can catch.
+      const inside = [
+        { label: 'Scarborough (Golf Club Rd)', lat: 43.7608, lng: -79.21562 },
+        { label: 'East York (Thorncliffe Park)', lat: 43.7043, lng: -79.3445 },
+      ];
+      const verdicts = inside.map((place) => {
+        const outcome = applyHardFilters({ ...base, beds: 3, dens: 0, lat: place.lat, lng: place.lng }, sister, geo);
+        const hit = outcome.rejections.find((r) => r.reason === 'excluded_area');
+        return { label: place.label, area: hit?.detail.area ?? null };
+      });
+      console.log(`refused areas: ${refused.join(', ')}`);
+      for (const v of verdicts) {
+        console.log(`  ${v.label.padEnd(30)} ${v.area ? `cut as ${String(v.area)}` : 'NOT CUT'}`);
+      }
+      console.log();
+      const missed = verdicts.filter((v) => v.area === null);
+      if (missed.length > 0) {
+        failures.push(
+          `area cut is not working for ${missed.map((v) => v.label).join(', ')} — ` +
+            'is data/seed/municipal-boundaries.json present?',
+        );
+      }
+    }
+
     // --- 4. a second profile is a row, not a commit ---
     // Inserted inside a transaction that always rolls back, so verification leaves no trace.
     await handle.db
@@ -179,6 +212,7 @@ async function main(): Promise<void> {
             allowSplitDwelling: true,
             maxTransitWalkM: 600,
             cities: ['Toronto'],
+            excludeAreas: [],
           },
           soft: { targetRent: 2200, weights: { rentBelowTarget: 60, transitOperational: 40 } },
           notify: { telegramChatIds: ['tmp'], minScore: 50, includeMap: false },
