@@ -17,8 +17,8 @@ import { tenantProfileSchema, type TenantProfile } from '@/profiles/profile.sche
  * - daycare age group is toddler, which filters the City of Toronto dataset to centres
  *   with TGSPACE > 0. A centre with 60 preschool places and no toddler places is no use.
  * - availableFrom is null: the move is "as soon as possible", so no date cut-off.
- * - the five city names are one municipality (amalgamated 1998); listing them spells out
- *   the intent of "anywhere in the 416".
+ * - the city names are one municipality (amalgamated 1998); listing them spells out the
+ *   intent of "anywhere in the 416", minus the parts of it named in excludeAreas.
  * - anchors is empty on purpose. Home office means there is no commute to optimise, which
  *   is exactly why transit weighs less than childcare here.
  */
@@ -64,7 +64,23 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
        * reason transit weighs less than childcare here.
        */
       maxTransitWalkM: null,
-      cities: ['Toronto', 'North York', 'Etobicoke', 'Scarborough', 'East York'],
+      cities: ['Toronto', 'North York', 'Etobicoke'],
+      /**
+       * Refused outright. Not a preference to be outranked by a good price — she will not
+       * live in these, so a listing there is worth nothing at any score.
+       *
+       * Note that trimming `cities` above is not what does this, and cannot be. Scarborough
+       * and East York are the same municipality as Toronto (amalgamated 1998), so a source
+       * is free to label a Scarborough listing "Toronto" and the city matcher deliberately
+       * agrees — that is what makes "anywhere in the 416" work. The cut is therefore decided
+       * by position against the 1998 boundaries; see geo/areas.ts.
+       *
+       * Brampton is different: it is its own city in Peel, so `cities` already excludes it
+       * and its own name identifies it. It is named here anyway, because the reason it is
+       * out is that she refuses it — not the incidental fact that today's allowlist happens
+       * to stop at Toronto.
+       */
+      excludeAreas: ['Scarborough', 'East York', 'Brampton'],
     },
     soft: {
       targetRent: 2700,

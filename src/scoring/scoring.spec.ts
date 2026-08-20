@@ -539,6 +539,55 @@ describe('applyHardFilters', () => {
     expect(result.rejections[0]?.reason).toBe('city');
   });
 
+  /**
+   * The three areas she refuses outright. Worth its own block because it is the one cut the
+   * city allowlist cannot make: Scarborough and East York *are* Toronto, so these listings
+   * pass every name-based test there is.
+   */
+  describe('refused areas', () => {
+    /** 567 Scarborough Golf Club Rd — a real CAPREIT building, advertised as Scarborough. */
+    const IN_SCARBOROUGH = { lat: 43.7608, lng: -79.21562 };
+    /** Thorncliffe Park, which sources routinely label Toronto. */
+    const IN_EAST_YORK = { lat: 43.7043, lng: -79.3445 };
+
+    it('rejects a Scarborough listing that calls itself Toronto', () => {
+      const result = applyHardFilters(filterable({ city: 'City of Toronto', ...IN_SCARBOROUGH }), PROFILE, RICH_GEO);
+      const excluded = result.rejections.find((r) => r.reason === 'excluded_area');
+      expect(excluded?.detail).toMatchObject({ area: 'Scarborough', determinedBy: 'coordinates' });
+    });
+
+    it('rejects East York the same way', () => {
+      const result = applyHardFilters(filterable({ city: 'Toronto', ...IN_EAST_YORK }), PROFILE, RICH_GEO);
+      expect(result.rejections.map((r) => r.reason)).toContain('excluded_area');
+    });
+
+    it('rejects a listing whose own label admits the area', () => {
+      const result = applyHardFilters(filterable({ city: 'Scarborough', ...IN_SCARBOROUGH }), PROFILE, RICH_GEO);
+      const excluded = result.rejections.find((r) => r.reason === 'excluded_area');
+      expect(excluded?.detail).toMatchObject({ area: 'Scarborough', determinedBy: 'label' });
+    });
+
+    it('rejects Brampton by name, before the allowlist gets to it', () => {
+      const result = applyHardFilters(filterable({ city: 'Brampton' }), PROFILE, RICH_GEO);
+      const reasons = result.rejections.map((r) => r.reason);
+      expect(reasons).toContain('excluded_area');
+      // Both fire, and both are true: it is neither on the allowlist nor acceptable.
+      expect(reasons).toContain('city');
+    });
+
+    it('leaves the rest of the city alone', () => {
+      const result = applyHardFilters(filterable(), PROFILE, RICH_GEO);
+      expect(result.decision).toBe('pass');
+      expect(result.rejections.map((r) => r.reason)).not.toContain('excluded_area');
+    });
+
+    it('holds back a listing with no coordinates instead of passing it', () => {
+      const result = applyHardFilters(filterable({ city: 'Toronto', lat: null, lng: null }), PROFILE, RICH_GEO);
+      expect(result.decision).toBe('review');
+      expect(result.reviews.some((r) => r.reason.includes('cannot be told apart'))).toBe(true);
+    });
+  });
+
   it('rejects when no toddler daycare is in range', () => {
     const result = applyHardFilters(filterable(), PROFILE, EMPTY_GEO);
     const reasons = result.rejections.map((r) => r.reason);
@@ -579,6 +628,8 @@ describe('configurability — adding a profile must not touch code', () => {
       allowSplitDwelling: true,
       maxTransitWalkM: 600,
       cities: ['Toronto'],
+      // Refuses nowhere: this tenant would take Scarborough happily.
+      excludeAreas: [],
     },
     soft: {
       targetRent: 2200,

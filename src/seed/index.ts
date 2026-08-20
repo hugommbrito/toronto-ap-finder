@@ -6,19 +6,26 @@ import { loadEnv } from '@/config/env';
 import { createDb, type Database } from '@/db/client';
 import { daycares, profiles, transitStations } from '@/db/schema';
 import { fetchDaycares, type SeedDaycare } from './daycares';
+import { fetchMunicipalBoundaries, serializeBoundaries } from './boundaries';
 import { buildTransitSeed } from './transit';
 import type { SeedStation } from './future-stations';
 import { buildSisterProfile } from './sister-profile';
 
 const DAYCARE_SEED_PATH = resolve('data/seed/daycares.json');
 const TRANSIT_SEED_PATH = resolve('data/seed/transit-stations.json');
+const BOUNDARY_SEED_PATH = resolve('data/seed/municipal-boundaries.json');
 
 /**
  * Seed files are committed so that a rebuild does not depend on two external services
  * being up, and so that a change in the upstream data shows up as a reviewable diff
  * rather than as a silent shift in everyone's scores.
  */
-async function loadOrFetch<T>(path: string, refresh: boolean, fetcher: () => Promise<T[]>): Promise<T[]> {
+async function loadOrFetch<T>(
+  path: string,
+  refresh: boolean,
+  fetcher: () => Promise<T[]>,
+  serialize: (rows: T[]) => string = (rows) => `${JSON.stringify(rows, null, 2)}\n`,
+): Promise<T[]> {
   if (!refresh) {
     try {
       const cached = JSON.parse(await readFile(path, 'utf8')) as T[];
@@ -33,7 +40,7 @@ async function loadOrFetch<T>(path: string, refresh: boolean, fetcher: () => Pro
 
   const fetched = await fetcher();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(fetched, null, 2)}\n`, 'utf8');
+  await writeFile(path, serialize(fetched), 'utf8');
   console.log(`  wrote ${path} (${fetched.length} records)`);
   return fetched;
 }
@@ -176,6 +183,10 @@ async function report(db: Database): Promise<void> {
     console.log(`  [${p.id}] active=${p.active} floor=${JSON.stringify(p.hard.bedroomRule)} ceiling=${p.hard.totalRentMax} target=${p.soft.targetRent}`);
     if (tiers) console.log(`     layout ladder: ${tiers}`);
     console.log(`     weights: ${weights}`);
+    // Printed because an area cut is invisible in the numbers above and is the one filter
+    // that removes listings the rest of the profile would happily rank.
+    const excluded = p.hard.excludeAreas ?? [];
+    if (excluded.length > 0) console.log(`     excludes areas: ${excluded.join(', ')}`);
   }
 }
 
@@ -208,13 +219,31 @@ export async function runSeed(db: Database, options: SeedOptions = {}): Promise<
   const transitRows = await loadOrFetch(TRANSIT_SEED_PATH, refresh, () => buildTransitSeed(env.SCRAPER_CONTACT_EMAIL));
   await seedTransit(db, transitRows);
 
+  /**
+   * Captured, not seeded. The former municipality boundaries stopped moving in 1998, so
+   * geo/areas.ts reads the committed file directly rather than through the database — and
+   * the hard filter that cuts Scarborough and East York depends on it being present.
+   */
+  console.log('municipal boundaries (City of Toronto CKAN)...');
+  const boundaryRows = await loadOrFetch(
+    BOUNDARY_SEED_PATH,
+    refresh,
+    () => fetchMunicipalBoundaries(env.SCRAPER_CONTACT_EMAIL),
+    serializeBoundaries,
+  );
+
   console.log(`profiles...${forceProfiles ? ' (--force-profiles: overwriting hard/soft/notify)' : ''}`);
   await seedProfiles(db, env.TELEGRAM_CHAT_IDS ?? ['TODO-set-TELEGRAM_CHAT_IDS'], forceProfiles);
   if (!env.TELEGRAM_CHAT_IDS) {
     console.warn('  note: TELEGRAM_CHAT_IDS unset — profile seeded with a placeholder; nothing will send.');
   }
 
-  if (!options.quiet) await report(db);
+  if (!options.quiet) {
+    console.log(
+      `\nmunicipal boundaries: ${boundaryRows.map((b) => `${b.name} (${b.ring.length})`).join(', ')}`,
+    );
+    await report(db);
+  }
 }
 
 /** True when the geography index has nothing in it — i.e. this database has never been seeded. */

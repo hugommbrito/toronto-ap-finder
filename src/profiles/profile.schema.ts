@@ -54,6 +54,21 @@ export const hardFiltersSchema = z.object({
   allowSplitDwelling: z.boolean().default(true),
   maxTransitWalkM: z.number().positive().nullable(),
   cities: z.array(z.string()).min(1),
+  /**
+   * Areas to cut outright, by name — a veto over `cities`, not a preference.
+   *
+   * `cities` cannot express this. Scarborough and East York have been part of the City of
+   * Toronto since 1998, so every source is entitled to label a Scarborough listing
+   * "Toronto"; the matcher agrees with them on purpose (see geo/city.ts). Removing
+   * Scarborough from the allowlist therefore removes nothing at all.
+   *
+   * So this is resolved by position against the 1998 boundaries, falling back to the label
+   * where there are no coordinates, and a listing whose area cannot be determined goes to
+   * needs_review rather than passing. Names must match data/seed/municipal-boundaries.json:
+   * Scarborough, North York, East York, Etobicoke, York, Old Toronto — plus any separate
+   * municipality, which needs no geometry because its own name identifies it.
+   */
+  excludeAreas: z.array(z.string()).default([]),
 });
 
 /**
