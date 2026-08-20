@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { loadEnv } from '@/config/env';
 import { KijijiSource } from './kijiji/kijiji.source';
 import { ZumperSource } from './zumper/zumper.source';
+import { CapreitSource } from './capreit/capreit.source';
 import type { BuildingListingSource, SourceHealth, UnitListingSource } from './source.interface';
 
 /**
@@ -33,7 +34,10 @@ export class SourceRegistry {
     );
 
     const units: UnitListingSource[] = [new KijijiSource(env.SCRAPER_CONTACT_EMAIL)];
-    const buildings: BuildingListingSource[] = [new ZumperSource(env.SCRAPER_CONTACT_EMAIL)];
+    const buildings: BuildingListingSource[] = [
+      new ZumperSource(env.SCRAPER_CONTACT_EMAIL),
+      new CapreitSource(env.SCRAPER_CONTACT_EMAIL),
+    ];
 
     this.units = units.filter((s) => !disabled.has(s.name));
     this.buildings = buildings.filter((s) => !disabled.has(s.name));

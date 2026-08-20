@@ -6,7 +6,7 @@
  * "the ad does not mention a locker" and "the unit has no locker" are different
  * facts, and collapsing them silently discards good listings.
  */
-export type ListingSource = 'kijiji' | 'rentals_ca' | 'zumper' | 'padmapper';
+export type ListingSource = 'kijiji' | 'rentals_ca' | 'zumper' | 'padmapper' | 'capreit';
 
 export interface Listing {
   id: string;

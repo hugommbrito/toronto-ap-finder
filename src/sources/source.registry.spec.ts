@@ -40,7 +40,7 @@ describe('SourceRegistry', () => {
   it('registers Kijiji as a unit source and Zumper as a building source', () => {
     const registry = new SourceRegistry();
     expect(registry.unitSources().map((s) => s.name)).toEqual(['kijiji']);
-    expect(registry.buildingSources().map((s) => s.name)).toEqual(['zumper']);
+    expect(registry.buildingSources().map((s) => s.name)).toEqual(['zumper', 'capreit']);
     // The two stages mean different things for the two shapes, which is why they stay separate.
     expect(registry.buildingSources()[0]!.granularity).toBe('building');
   });
@@ -49,13 +49,13 @@ describe('SourceRegistry', () => {
     // The bug this replaces: /health and the pause alert both read one hardcoded source, so a
     // paused Zumper was invisible in both.
     const registry = new SourceRegistry();
-    expect(registry.all().map((s) => s.name).sort()).toEqual(['kijiji', 'zumper']);
-    expect(Object.keys(registry.health()).sort()).toEqual(['kijiji', 'zumper']);
+    expect(registry.all().map((s) => s.name).sort()).toEqual(['capreit', 'kijiji', 'zumper']);
+    expect(Object.keys(registry.health()).sort()).toEqual(['capreit', 'kijiji', 'zumper']);
     expect(registry.pausedSources()).toEqual([]);
   });
 
   it('excludes what DISABLED_SOURCES names, and tolerates spacing', () => {
-    process.env.DISABLED_SOURCES = ' zumper , ';
+    process.env.DISABLED_SOURCES = ' zumper , capreit ';
     const registry = new SourceRegistry();
     expect(registry.buildingSources()).toEqual([]);
     expect(registry.unitSources().map((s) => s.name)).toEqual(['kijiji']);
