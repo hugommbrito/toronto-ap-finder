@@ -16,7 +16,7 @@ pnpm install
 docker compose up -d          # PostGIS on :5433
 pnpm db:migrate
 pnpm seed                     # ~1,090 daycares, 139 stations, 1 profile
-pnpm test                     # 314 tests (8 need a database, skipped without one)
+pnpm test                     # 376 tests (16 need a database, skipped without one)
 pnpm verify                   # acceptance checks against the real database
 pnpm probe                    # measures what each source does when we knock
 pnpm cycle:dry                # one full cycle, scores everything, sends nothing
@@ -148,6 +148,44 @@ A single-sided `(target - total) / target` would return 0 for everything above 2
 in this market is everything — no ability to tell 2,750 from 3,150, on the axis that
 matters most.
 
+### A refused area is not a city
+
+`hard.excludeAreas` is a veto, and it cannot be folded into `hard.cities`. The `sister`
+profile refuses **Scarborough, East York and Brampton** outright — no price makes them
+acceptable, so they are cut rather than ranked.
+
+Removing them from `cities` would achieve nothing. Scarborough and East York have been the
+same municipality as Toronto since the 1998 amalgamation, so a source calling a listing
+"Scarborough" and one calling it "Toronto" are both telling the truth — and `cityMatches`
+agrees with both on purpose, because that is what "anywhere in the 416" means. A name-based
+allowlist is therefore structurally unable to express "the 416 except Scarborough".
+
+So the cut is decided by **position**, against the real 1998 boundaries in
+`data/seed/municipal-boundaries.json` (`src/geo/areas.ts`). On Danforth Avenue the answer
+turns on about 300 m of Victoria Park Avenue, which is why these are actual outlines and not
+bounding boxes. The label is still checked first — it is free, and it is the only signal a
+listing without coordinates has. Brampton needs no geometry at all: it is its own
+municipality, so its own name identifies it.
+
+A listing whose area **cannot** be determined — no coordinates, and a label that says only
+Toronto — goes to `needs_review`, never to `pass`. The same is true if the boundary file
+goes missing: `pnpm verify` checks two known addresses inside Scarborough and East York for
+exactly that reason. The worst this filter can do is hold a listing back; it cannot quietly
+deliver the one thing the profile said no to.
+
+Areas are data like everything else:
+
+```sql
+UPDATE profiles
+SET hard = jsonb_set(hard, '{excludeAreas}', '["Scarborough", "East York", "Brampton"]')
+WHERE id = 'sister';
+```
+
+Valid names are the six former municipalities — `Scarborough`, `North York`, `East York`,
+`Etobicoke`, `York`, `Old Toronto` — plus any separate municipality by name. Neighbourhoods
+below that level (Riverdale, Liberty Village) have no boundary data and cannot be cut this
+way.
+
 ### Tuning
 
 Weights are data. To change one:
@@ -212,11 +250,15 @@ indexes for ad-hoc calibration queries, not for the hot path.
 
 ## Data attribution
 
-The files under `data/seed/` are redistributed from two open datasets, and both licences
+The files under `data/seed/` are redistributed from open datasets, and the licences
 require attribution:
 
 - **`daycares.json`** — *Licensed Child Care Centres*, City of Toronto Open Data, used under
   the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/).
+- **`municipal-boundaries.json`** — *Former Municipality Boundaries*, City of Toronto Open
+  Data, used under the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/).
+  Simplified to a 25 m tolerance, which is far below anything that can change an answer:
+  these lines run down the middle of arterial roads and rivers.
 - **`transit-stations.json`** — derived from [OpenStreetMap](https://www.openstreetmap.org/)
   via the Overpass API, © OpenStreetMap contributors, available under the
   [Open Database Licence](https://opendatacommons.org/licenses/odbl/). Stations for lines
@@ -424,7 +466,7 @@ failing. This is where that becomes visible.
 | Kijiji | live | one advertisement, one unit |
 | Zumper | live | search returns **buildings**; one request opens all their floorplans |
 | Rentals.ca | **refused** | `robots.txt` itself sits behind a Cloudflare challenge — see [docs/sources/rentals-ca.md](docs/sources/rentals-ca.md) |
-| CAPREIT | investigated, **green** | 569 properties in one sitemap with `<lastmod>`, 44 in the 416; building pages server-render JSON-LD — see [docs/sources/pm_capreit.md](docs/sources/pm_capreit.md) |
+| CAPREIT | live | one sitemap request enumerates 569 properties with `<lastmod>`, 44 in the 416; 91 units measured, 40 of them 2BR+ inside the budget. The only source here that declares a den — see [docs/sources/pm_capreit.md](docs/sources/pm_capreit.md) |
 | Greenwin | **closed** | site renders client-side from `newapi.lws1.com`, whose `robots.txt` is `Disallow: /` — see [docs/sources/pm_greenwin.md](docs/sources/pm_greenwin.md) |
 | Hazelview | **closed** | Rentsync again, via `lift-api.rentsync.com` behind a third party's `auth_token`. Both robots files permit us; the credential does not — see [docs/sources/pm_hazelview.md](docs/sources/pm_hazelview.md) |
 
