@@ -19,6 +19,21 @@ const wellesley = fixture('wellesley-apartments');
 const roanoke = fixture('roanoke-apartments');
 const scarborough = fixture('scarborough-golf-apartments');
 
+describe('entity decoding', () => {
+  it('decodes entities that otherwise reach the database verbatim', () => {
+    // One building came through with a city of "190 &amp; 200 Kingsview".
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'Apartment',
+      name: 'Kingsview &amp; Something',
+      address: [{ streetAddress: '190 &amp; 200 Kingsview Blvd', addressLocality: 'Toronto', postalCode: 'M9N 1L1' }],
+    })}</script><ul class="property-options-list"></ul>`;
+    const b = parseBuildingRecord(html);
+    expect(b.name).toBe('Kingsview & Something');
+    expect(b.address).toBe('190 & 200 Kingsview Blvd');
+    expect(b.city).toBe('Toronto');
+  });
+});
+
 describe('parseLayout', () => {
   it('reads the den CAPREIT declares, which no other source here does', () => {
     expect(parseLayout('2 Bedroom + Den')).toEqual({ beds: 2, dens: 1 });
@@ -70,6 +85,22 @@ describe('parseBuildingRecord', () => {
     // The page's own indentation lives inside these strings.
     expect(b.city).toBe('Toronto');
     expect(b.description).toMatch(/apartments for rent in Toronto/i);
+  });
+
+  it('reads a compound address whose JSON-LD fields are shifted', () => {
+    // "7 & 9 Roanoke Road, North York, ON, M3A 1E3" arrives as streetAddress '7',
+    // addressLocality '9 Roanoke Road', addressRegion 'North York', postalCode 'ON, M3A 1E3'.
+    // Trusting addressLocality put a street into the city column for eleven of eighty-two units,
+    // and the city filter then rejected every one of them for a reason that was ours.
+    const b = parseBuildingRecord(roanoke);
+    expect(b.city).toBe('North York');
+    expect(b.address).toBe('9 Roanoke Road');
+  });
+
+  it('still reads an address whose fields are correctly aligned', () => {
+    const b = parseBuildingRecord(wellesley);
+    expect(b.city).toBe('Toronto');
+    expect(b.address).toBe('100 Wellesley Street East');
   });
 
   it('coerces the coordinates, which arrive as strings', () => {

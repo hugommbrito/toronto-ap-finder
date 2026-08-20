@@ -58,9 +58,65 @@ interface JsonLdApartment {
   amenityFeature?: unknown;
 }
 
-/** JSON-LD arrives with the page's indentation inside its string values. */
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&nbsp;': ' ',
+};
+
+/** JSON-LD arrives with the page's indentation, and its entities, inside its string values. */
 function clean(value: unknown): string {
-  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (e) => ENTITIES[e] ?? e)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const POSTAL = /\b[A-Za-z]\d[A-Za-z]\s*\d[A-Za-z]\d\b/;
+const PROVINCE = /^(?:on|ont|ontario|qc|ab|bc|ns|nb|mb|sk|pe|nl)$/i;
+
+/**
+ * Street and city, read out of the whole address rather than out of the fields.
+ *
+ * The fields cannot be trusted individually. On a building with a compound address the template
+ * spills the parts one key to the left — `7 & 9 Roanoke Road, North York, ON, M3A 1E3` arrives as
+ * `streetAddress: '7'`, `addressLocality: '9 Roanoke Road'`, `addressRegion: 'North York'`,
+ * `postalCode: 'ON, M3A 1E3'` — while a plain address arrives correctly aligned. Trusting
+ * `addressLocality` therefore put a street into the city column for eleven of eighty-two units,
+ * and every one of them was then rejected by the city filter: fetched, parsed, and thrown away
+ * for a reason that was ours rather than theirs.
+ *
+ * So the parts are joined and read as one string, which is what the rest of the project already
+ * assumes an address is — `normalizeAddress` exists precisely because sources disagree about
+ * where the city goes.
+ */
+function parseAddress(record: JsonLdApartment): { address: string | null; city: string | null } {
+  const raw = record.address;
+  const parts = (Array.isArray(raw) ? raw : [raw])
+    .flatMap((a) => {
+      const o = (a ?? {}) as Record<string, unknown>;
+      return [o.streetAddress, o.addressLocality, o.addressRegion, o.postalCode];
+    })
+    .flatMap((v) => clean(v).split(','))
+    .map((s) => s.trim())
+    .filter(Boolean)
+    // The postal code and the province are identifiable wherever they landed, so they are
+    // removed by shape instead of by position.
+    .filter((s) => !POSTAL.test(s) && !PROVINCE.test(s));
+
+  // The city is the last segment carrying no street number; everything before it is the street.
+  const cityIndex = parts.map((s) => /\d/.test(s)).lastIndexOf(false);
+  const city = cityIndex === -1 ? null : parts[cityIndex]!;
+  const streets = cityIndex === -1 ? parts : parts.slice(0, cityIndex);
+  // A bare number is half of a compound address, not an address. Prefer a segment that carries
+  // both a number and a name, exactly as normalizeAddress does when it reads a street line.
+  const address = streets.find((s) => /\d/.test(s) && /[A-Za-z]/.test(s)) ?? streets[0] ?? null;
+
+  return { address, city };
 }
 
 function first<T>(value: T | T[] | undefined): T | undefined {
@@ -113,7 +169,6 @@ export interface CapreitBuilding {
 
 export function parseBuildingRecord(html: string): CapreitBuilding {
   const record = extractBuilding(html);
-  const address = first(record.address as Record<string, unknown>[] | undefined);
   const geo = first(record.geo as Record<string, unknown>[] | undefined);
   const amenities = (Array.isArray(record.amenityFeature) ? record.amenityFeature : [])
     .map((a) => clean((a as { name?: unknown })?.name ?? a))
@@ -122,8 +177,7 @@ export function parseBuildingRecord(html: string): CapreitBuilding {
   return {
     name: clean(record.name),
     url: clean(record.url),
-    address: clean(address?.streetAddress) || null,
-    city: clean(address?.addressLocality) || null,
+    ...parseAddress(record),
     lat: coord(geo?.latitude),
     lng: coord(geo?.longitude),
     description: clean(record.description) || null,
