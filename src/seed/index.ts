@@ -4,15 +4,17 @@ import { dirname, resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { loadEnv } from '@/config/env';
 import { createDb, type Database } from '@/db/client';
-import { daycares, profiles, transitStations } from '@/db/schema';
+import { daycares, profiles, rentsafeBuildings, transitStations } from '@/db/schema';
 import { fetchDaycares, type SeedDaycare } from './daycares';
 import { fetchMunicipalBoundaries, serializeBoundaries } from './boundaries';
 import { buildTransitSeed } from './transit';
+import { fetchRentSafeBuildings, type SeedRentSafeBuilding } from './rentsafe';
 import type { SeedStation } from './future-stations';
 import { buildSisterProfile } from './sister-profile';
 
 const DAYCARE_SEED_PATH = resolve('data/seed/daycares.json');
 const TRANSIT_SEED_PATH = resolve('data/seed/transit-stations.json');
+const RENTSAFE_SEED_PATH = resolve('data/seed/rentsafe-buildings.json');
 const BOUNDARY_SEED_PATH = resolve('data/seed/municipal-boundaries.json');
 
 /**
@@ -96,6 +98,33 @@ async function seedTransit(db: Database, rows: SeedStation[]): Promise<void> {
     });
 }
 
+async function seedRentSafe(db: Database, rows: SeedRentSafeBuilding[]): Promise<void> {
+  // Chunked because 3,585 rows times fourteen columns exceeds what one statement should carry.
+  for (let i = 0; i < rows.length; i += 500) {
+    await db
+      .insert(rentsafeBuildings)
+      .values(rows.slice(i, i + 500))
+      .onConflictDoUpdate({
+        target: rentsafeBuildings.rsn,
+        set: {
+          siteAddress: sql`excluded.site_address`,
+          normalizedAddress: sql`excluded.normalized_address`,
+          score: sql`excluded.score`,
+          evaluatedOn: sql`excluded.evaluated_on`,
+          yearBuilt: sql`excluded.year_built`,
+          confirmedStoreys: sql`excluded.confirmed_storeys`,
+          confirmedUnits: sql`excluded.confirmed_units`,
+          propertyType: sql`excluded.property_type`,
+          ward: sql`excluded.ward`,
+          wardName: sql`excluded.ward_name`,
+          lat: sql`excluded.lat`,
+          lng: sql`excluded.lng`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+}
+
 async function seedProfiles(db: Database, telegramChatIds: string[], force: boolean): Promise<void> {
   const sister = buildSisterProfile(telegramChatIds);
   const values = {
@@ -158,6 +187,17 @@ async function report(db: Database): Promise<void> {
     .groupBy(transitStations.line, transitStations.status)
     .orderBy(transitStations.status, transitStations.line);
 
+  const [rs] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      mean: sql<number>`round(avg(${rentsafeBuildings.score})::numeric, 2)::float8`,
+      median: sql<number>`percentile_cont(0.5) within group (order by ${rentsafeBuildings.score})::float8`,
+      withYear: sql<number>`count(*) filter (where ${rentsafeBuildings.yearBuilt} is not null)::int`,
+      preControl: sql<number>`count(*) filter (where ${rentsafeBuildings.yearBuilt} <= 2017)::int`,
+      withCoords: sql<number>`count(*) filter (where ${rentsafeBuildings.lat} is not null)::int`,
+    })
+    .from(rentsafeBuildings);
+
   const profileRows = await db
     .select({ id: profiles.id, active: profiles.active, hard: profiles.hard, soft: profiles.soft })
     .from(profiles);
@@ -173,6 +213,15 @@ async function report(db: Database): Promise<void> {
   }
   // Printed so that a structural change to a profile is visible after seeding, rather than
   // something you have to go and query for.
+  // The mean is printed because buildingScore's curve is anchored on it. A constant nobody ever
+  // re-checks against the data is a constant that quietly stops being true.
+  console.log('\nRentSafeTO buildings:');
+  console.log(`  evaluated:         ${rs?.total ?? 0}`);
+  console.log(`  mean score:        ${rs?.mean ?? 0}   <- buildingScore is anchored here`);
+  console.log(`  median score:      ${rs?.median ?? 0}`);
+  console.log(`  with a year built: ${rs?.withYear ?? 0}  (${rs?.preControl ?? 0} at or before 2017 — rent controlled)`);
+  console.log(`  with coordinates:  ${rs?.withCoords ?? 0}`);
+
   console.log(`\nprofiles: ${profileRows.length}`);
   for (const p of profileRows) {
     const tiers = (p.soft.bedroomTiers ?? []).map((t) => `${t.label} = ${t.value}`).join(', ');
@@ -231,6 +280,12 @@ export async function runSeed(db: Database, options: SeedOptions = {}): Promise<
     () => fetchMunicipalBoundaries(env.SCRAPER_CONTACT_EMAIL),
     serializeBoundaries,
   );
+
+  console.log('RentSafeTO building evaluations (City of Toronto CKAN)...');
+  const rentsafeRows = await loadOrFetch(RENTSAFE_SEED_PATH, refresh, () =>
+    fetchRentSafeBuildings(env.SCRAPER_CONTACT_EMAIL),
+  );
+  await seedRentSafe(db, rentsafeRows);
 
   console.log(`profiles...${forceProfiles ? ' (--force-profiles: overwriting hard/soft/notify)' : ''}`);
   await seedProfiles(db, env.TELEGRAM_CHAT_IDS ?? ['TODO-set-TELEGRAM_CHAT_IDS'], forceProfiles);

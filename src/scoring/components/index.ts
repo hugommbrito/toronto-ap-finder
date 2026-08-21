@@ -104,6 +104,66 @@ export const locker: ScoreComponent = (ctx) =>
 export const inSuiteLaundry: ScoreComponent = (ctx) =>
   ctx.listing.inSuiteLaundry === null ? null : ctx.listing.inSuiteLaundry ? 1 : 0;
 
+/**
+ * The score a typical inspected building carries — the point where this component is neutral.
+ *
+ * Four numbers are in play and they are not interchangeable, which is why this one is 91:
+ *
+ * | 88    | the City's published municipal average |
+ * | 88.62 | the mean over all 6,090 **evaluations** |
+ * | 89.76 | the mean over the 3,585 **buildings**, after keeping each one's latest evaluation |
+ * | 91    | the **median** of those buildings |
+ *
+ * This component scores a building, so the population is the deduplicated buildings and not the
+ * evaluation rows — the two differ because a building that is flagged tends to score better next
+ * time, so later evaluations run high. Anchoring on 88 would have handed 0.573 to a typical
+ * building instead of 0.5, biasing in exactly the direction the curve exists to avoid.
+ *
+ * The median rather than the mean, because it makes the claim exact: half of all inspected
+ * buildings score above this and half below, so half are rewarded and half are penalised. It is
+ * also unmoved by the tail — the worst building in the file scores 17.
+ *
+ * The seed prints the observed mean and median on every run, because a constant nobody re-checks
+ * against the data is a constant that quietly stops being true.
+ */
+const TYPICAL_BUILDING_SCORE = 91;
+/** The City's own red line: at or below this a building is audited. Only 0.4% of stock. */
+const AUDIT_FLOOR_SCORE = 50;
+
+/**
+ * How the building itself scored when the City inspected it — a signal no aggregator offers.
+ *
+ * **An average building is neutral, not good.** The obvious mapping, `score / 100`, hands 0.88 to
+ * a building that is merely typical, and coverage makes that a systematic bias rather than a
+ * rounding error: measured, 90% of purpose-built units match an inspected building against about
+ * 15% of condo listings. Since a null component drops out of the average entirely, paying 0.88 to
+ * everything that matches would quietly promote the whole purpose-built segment over condos on a
+ * criterion condos cannot have. That is the bias the addendum warns about, arriving through the
+ * other door.
+ *
+ * So the curve is a two-segment hinge on the typical building, in the same spirit as
+ * rentBelowTarget: 91 → 0.50, 100 → 1.00, 50 → 0.00. The floor sits at the City's audit line
+ * rather than at zero because a ramp to zero-at-zero would compress the populated band (74–100,
+ * p05 to max) into the top quarter of the range and recreate the flatness it was meant to fix.
+ * The upper segment is the steeper of the two on purpose: a quarter of all inspected buildings
+ * score 95 or better, so that is where the discrimination has to happen.
+ *
+ * One honest qualifier, because renormalisation makes it counter-intuitive: a component pulls the
+ * final score *towards its own value*, so "neutral" holds in the component's units and not in
+ * final points. Break-even against an unmatched condo sits at `value = score/100`, so a listing
+ * scoring 75 on everything else needs a building around 96 before the match pays. A merely typical
+ * building therefore costs a strong listing a couple of points. That is a bounded, two-sided
+ * residual instead of a one-directional subsidy, which is the whole purpose.
+ */
+export const buildingScore: ScoreComponent = (ctx) => {
+  const raw = ctx.building?.score;
+  if (raw === undefined || raw === null) return null;
+
+  return raw >= TYPICAL_BUILDING_SCORE
+    ? clamp01(0.5 + (0.5 * (raw - TYPICAL_BUILDING_SCORE)) / (100 - TYPICAL_BUILDING_SCORE))
+    : clamp01((0.5 * (raw - AUDIT_FLOOR_SCORE)) / (TYPICAL_BUILDING_SCORE - AUDIT_FLOOR_SCORE));
+};
+
 export const rentControlled: ScoreComponent = (ctx) =>
   ctx.listing.buildingBuiltBefore2018 === null ? null : ctx.listing.buildingBuiltBefore2018 ? 1 : 0;
 
@@ -170,6 +230,7 @@ export const SCORE_COMPONENTS: Record<string, ScoreComponent> = {
   inSuiteLaundry,
   rentControlled,
   rentBelowTarget,
+  buildingScore,
 };
 
 export type ComponentName = keyof typeof SCORE_COMPONENTS;

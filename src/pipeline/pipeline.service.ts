@@ -16,6 +16,8 @@ import { reachableLines, type GeoIndex } from '@/scoring/context';
 import { SourceRegistry, newlyPaused } from '@/sources/source.registry';
 import { SourcePausedError } from '@/sources/rate-limiter';
 import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/verification/listing-verifier';
+import { RentSafeService } from '@/rentsafe/rentsafe.service';
+import { applyRentSafe } from '@/rentsafe/apply';
 import { applyVerdict } from '@/verification/apply-verdict';
 import type { BuildingListingSource, SourceHealth, UnitListingSource } from '@/sources/source.interface';
 
@@ -57,6 +59,8 @@ export interface CycleReport {
   hydrationDeferred: number;
   rejectedAfterHydration: Record<string, number>;
   needsReview: number;
+  rentsafeMatched: number;
+  rentsafeUnmatched: number;
   verified: number;
   verificationRejected: number;
   verificationCorrected: number;
@@ -107,6 +111,7 @@ export class PipelineService {
     private readonly notifier: TelegramNotifier,
     private readonly verifier: ListingVerifier,
     private readonly registry: SourceRegistry,
+    private readonly rentsafe: RentSafeService,
   ) {}
 
   /** For /health: what every source is doing, and how each kind of cycle last went. */
@@ -636,6 +641,26 @@ export class PipelineService {
   ): Promise<void> {
     const fingerprint = fingerprintOf(listing);
 
+    // Resolved once, outside the profile loop: which building an advertisement is in is a fact
+    // about the advertisement, not a judgement any profile makes.
+    const matched = this.rentsafe.get().match(listing);
+    if (matched) {
+      report.rentsafeMatched += 1;
+      const enriched = applyRentSafe(listing, matched.building);
+      await this.repo.linkRentSafe(
+        listingId,
+        matched.building.rsn,
+        matched.tier,
+        enriched.buildingBuiltBefore2018,
+      );
+      listing = enriched;
+    } else {
+      report.rentsafeUnmatched += 1;
+    }
+    const building = matched
+      ? { rsn: matched.building.rsn, score: matched.building.score, yearBuilt: matched.building.yearBuilt }
+      : null;
+
     for (const profile of profiles) {
       const outcome = applyHardFilters(listing, profile, geo);
       if (outcome.decision === 'reject') {
@@ -671,7 +696,7 @@ export class PipelineService {
       }
 
       let scored = listing;
-      let score = scoreListing({ listing: scored, profile, geo });
+      let score = scoreListing({ listing: scored, profile, geo, building });
       await this.repo.upsertMatch(listingId, profile.id, score);
       report.scored += 1;
 
@@ -686,7 +711,7 @@ export class PipelineService {
       if (verification.rejected) continue;
       if (verification.listing !== scored) {
         scored = verification.listing;
-        score = scoreListing({ listing: scored, profile, geo });
+        score = scoreListing({ listing: scored, profile, geo, building });
         await this.repo.upsertMatch(listingId, profile.id, score);
         // The corrected layout can drop it under the bar it had just cleared.
         if (score.score < profile.notify.minScore) continue;
@@ -818,6 +843,8 @@ function emptyReport(): CycleReport {
     hydrationDeferred: 0,
     rejectedAfterHydration: {},
     needsReview: 0,
+    rentsafeMatched: 0,
+    rentsafeUnmatched: 0,
     verified: 0,
     verificationRejected: 0,
     verificationCorrected: 0,

@@ -13,6 +13,7 @@ import { SourceRegistry } from './sources/source.registry';
 import { WatchdogService } from './pipeline/watchdog.service';
 import { OperationsController } from './operations/operations.controller';
 import { OperationsService } from './operations/operations.service';
+import { RentSafeService } from './rentsafe/rentsafe.service';
 import { ListingVerifier } from './verification/listing-verifier';
 
 /**
@@ -38,7 +39,8 @@ import { ListingVerifier } from './verification/listing-verifier';
     SourceRegistry,
     WatchdogService,
     OperationsService,
+    RentSafeService,
   ],
-  exports: [GeoService, ProfilesService, PipelineService, ProbeService],
+  exports: [GeoService, ProfilesService, PipelineService, ProbeService, RentSafeService],
 })
 export class AppModule {}

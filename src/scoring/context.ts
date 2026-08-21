@@ -146,7 +146,21 @@ export function reachableLines(nearby: NearbyStation[]): ReachableLine[] {
   return [...closest.values()].sort((a, b) => a.distanceM - b.distanceM);
 }
 
+/**
+ * The City's inspection record for the building a listing is in, when one could be established.
+ *
+ * Optional on the context rather than required: every existing spec constructs a context, and a
+ * required field would have made adding this a rewrite of files it has nothing to do with.
+ */
+export interface ScoredBuilding {
+  rsn: string;
+  score: number;
+  yearBuilt: number | null;
+}
+
 export interface ScoringContext {
+  /** Null when no inspected building could be matched, which is most condo listings. */
+  building?: ScoredBuilding | null;
   listing: ScorableListing;
   profile: TenantProfile;
   geo: GeoIndex;

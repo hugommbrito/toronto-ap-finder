@@ -96,7 +96,11 @@ export class ListingsRepository {
           city: sql`excluded.city`,
           lat: sql`excluded.lat`,
           lng: sql`excluded.lng`,
-          buildingBuiltBefore2018: sql`excluded.building_built_before_2018`,
+          // Coalesced, not overwritten. evaluate() fills this from the City's inspection data
+          // after hydration, and the next cycle's triage upsert carries null — so a plain
+          // `excluded` would erase the year-built fact on every sweep. raw_text and posted_at
+          // already use this pattern for the same reason.
+          buildingBuiltBefore2018: sql`coalesce(excluded.building_built_before_2018, ${listings.buildingBuiltBefore2018})`,
           postedAt: sql`coalesce(excluded.posted_at, listings.posted_at)`,
           lastSeenAt: sql`now()`,
           // Seeing it again clears both the miss counter and any delisting.
@@ -379,6 +383,32 @@ export class ListingsRepository {
       .where(eq(sourceBuildings.id, id));
   }
 
+
+  /**
+   * Records which inspected building a listing is in, how the two were matched, and the year-built
+   * fact that match unlocks.
+   *
+   * `buildingBuiltBefore2018` is coalesced rather than assigned: the City's file is a fallback for
+   * something the source may already have stated, and a secondary dataset does not get to overrule
+   * a primary one. Written here rather than left in memory because `evaluate()` never upserts the
+   * listing — so without this the fact is re-derived on every cycle, used in the score, and
+   * invisible to every query.
+   */
+  async linkRentSafe(
+    listingId: string,
+    rsn: string,
+    tier: string,
+    builtBefore2018: boolean | null,
+  ): Promise<void> {
+    await this.db
+      .update(listings)
+      .set({
+        rentsafeRsn: rsn,
+        rentsafeMatch: tier,
+        buildingBuiltBefore2018: sql`coalesce(${listings.buildingBuiltBefore2018}, ${builtBefore2018})`,
+      })
+      .where(eq(listings.id, listingId));
+  }
 
   // --- operational history -----------------------------------------------------------
   //

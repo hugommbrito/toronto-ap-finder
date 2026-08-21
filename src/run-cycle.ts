@@ -41,6 +41,11 @@ function printReport(report: CycleReport): void {
   console.log(`  deferred to next   ${report.hydrationDeferred}`);
   console.log(`scored               ${report.scored}`);
   console.log(`needs review         ${report.needsReview}`);
+  if (report.rentsafeMatched + report.rentsafeUnmatched > 0) {
+    const total = report.rentsafeMatched + report.rentsafeUnmatched;
+    const pct = ((100 * report.rentsafeMatched) / total).toFixed(0);
+    console.log(`inspected building   ${report.rentsafeMatched}/${total} matched (${pct}%)`);
+  }
   console.log(`verified by model    ${report.verified}`);
   if (report.verificationCorrected > 0) console.log(`  layout corrected   ${report.verificationCorrected}`);
   if (report.verificationRejected > 0) console.log(`  rejected           ${report.verificationRejected}`);

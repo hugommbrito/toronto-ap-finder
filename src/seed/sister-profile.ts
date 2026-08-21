@@ -116,6 +116,13 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
         transitOperational: 15,
         locker: 5,
         rentControlled: 5,
+        /**
+         * High enough to break a tie, low enough not to outweigh childcare or transit, which are
+         * the criteria that actually eliminate. Present for ~90% of purpose-built units and ~15%
+         * of condo listings, so the curve is centred on the municipal mean rather than linear —
+         * otherwise the mere fact of being inspected would promote a whole segment.
+         */
+        buildingScore: 15,
         transitFuture: 3,
         inSuiteLaundry: 2,
       },

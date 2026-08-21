@@ -61,6 +61,17 @@ export const listings = pgTable(
     delistedAt: timestamp('delisted_at', { withTimezone: true }),
     /** How many re-checks have failed to confirm the ad since it was last seen listed. */
     missedSweeps: integer('missed_sweeps').notNull().default(0),
+
+    /**
+     * Which City-inspected building this listing is in, and how the two were matched.
+     *
+     * Null is the common case rather than the exception: RentSafeTO covers buildings of three or
+     * more storeys and ten or more units, excluding condos, so 90% of purpose-built units match
+     * one and roughly 15% of condo listings do. `rentsafe_match` records which tier found it,
+     * which with that spread is the column you end up querying.
+     */
+    rentsafeRsn: text('rentsafe_rsn'),
+    rentsafeMatch: text('rentsafe_match'),
   },
   (t) => ({
     /** Stops the same advertisement being reprocessed, including top-ads repeated across pages. */
