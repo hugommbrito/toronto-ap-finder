@@ -118,7 +118,7 @@ export class ListingsRepository {
    * Listings whose detail page has already been fetched, keyed by source id.
    *
    * This is what stops every cycle from re-downloading the body of every candidate it has
-   * ever seen. On a 20-minute schedule that repetition is precisely what earns an HTTP 429.
+   * ever seen. At this cadence that repetition is precisely what earns an HTTP 429.
    */
   async findHydrated(source: ListingSource, sourceIds: string[]): Promise<Map<string, ListingRow>> {
     if (sourceIds.length === 0) return new Map();

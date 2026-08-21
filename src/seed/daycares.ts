@@ -97,7 +97,8 @@ const yes = (v: string | undefined): boolean => (v ?? '').trim().toUpperCase() =
 
 export async function fetchDaycares(contactEmail?: string): Promise<SeedDaycare[]> {
   const { url } = await resolveCsvUrl(contactEmail);
-  const csv = await fetchText(url, { contactEmail });
+  // CKAN serves this as a multi-megabyte CSV.
+  const csv = await fetchText(url, { contactEmail, timeoutMs: 120_000 });
   const records = parseCsvRecords(csv);
 
   const out: SeedDaycare[] = [];

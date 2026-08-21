@@ -12,6 +12,18 @@ export interface RateLimiterOptions {
   name: string;
   /** Floor between requests. The brief sets a 2 s minimum for every source. */
   minIntervalMs: number;
+  /**
+   * Random extra delay, 0 to this, added on top of the floor for every request.
+   *
+   * **Additive, never a replacement.** Section 7 of the addendum asks for a 2–5 s randomised gap,
+   * and that reads as a reduction here: Kijiji's 12 s is a measurement, not a preference — 2 s
+   * earned a 429 after two dozen requests and 6 s was refused on the next cycle's first request.
+   * The point of jitter is that an interval of exactly 1200 s is a machine signature, and that is
+   * fixed by making the gap unpredictable rather than shorter.
+   */
+  jitterMs?: number;
+  /** Injectable so the pacing can be tested without waiting for a random number. */
+  random?: () => number;
   /** Consecutive failures before the source stops being polled. */
   maxConsecutiveFailures?: number;
   baseBackoffMs?: number;
@@ -32,10 +44,19 @@ export class RateLimiter {
   private requestCount = 0;
   private readonly maxConsecutiveFailures: number;
   private readonly baseBackoffMs: number;
+  private readonly jitterMs: number;
+  private readonly random: () => number;
 
   constructor(private readonly options: RateLimiterOptions) {
     this.maxConsecutiveFailures = options.maxConsecutiveFailures ?? 3;
     this.baseBackoffMs = options.baseBackoffMs ?? 2_000;
+    this.jitterMs = options.jitterMs ?? 0;
+    this.random = options.random ?? Math.random;
+  }
+
+  /** The gap this request will observe: the measured floor, plus an unpredictable tail. */
+  private gapMs(): number {
+    return this.options.minIntervalMs + Math.floor(this.random() * (this.jitterMs + 1));
   }
 
   get paused(): boolean {
@@ -81,7 +102,10 @@ export class RateLimiter {
       throw new SourcePausedError(this.options.name, this.pauseReason ?? 'circuit open');
     }
 
-    const waitMs = this.lastRequestAt + this.options.minIntervalMs - Date.now();
+    // `lastRequestAt` is stamped after the callback settles rather than before it, so the real
+    // gap is floor + jitter + however long the source took to answer. Already generous; worth
+    // knowing before anyone "optimises" where the stamp goes.
+    const waitMs = this.lastRequestAt + this.gapMs() - Date.now();
     if (waitMs > 0) await sleep(waitMs);
 
     this.requestCount += 1;

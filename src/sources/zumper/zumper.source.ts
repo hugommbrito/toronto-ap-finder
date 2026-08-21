@@ -37,7 +37,12 @@ export class ZumperSource implements BuildingListingSource {
   private readonly limiter: RateLimiter;
 
   constructor(private readonly contactEmail?: string) {
-    this.limiter = new RateLimiter({ name: this.name, minIntervalMs: this.minIntervalMs });
+    this.limiter = new RateLimiter({
+      name: this.name,
+      minIntervalMs: this.minIntervalMs,
+      // 6–10 s, in the same proportion as Kijiji.
+      jitterMs: 4_000,
+    });
   }
 
   get paused(): boolean {

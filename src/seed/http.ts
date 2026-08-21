@@ -8,9 +8,21 @@ export interface FetchOptions {
   headers?: Record<string, string>;
   /** Attempts before giving up. Backoff is exponential. */
   retries?: number;
+  /**
+   * Abort after this long. Defaults to 30 s.
+   *
+   * There was no timeout at all before this, which meant undici's 300 s defaults applied and one
+   * hung response could consume five minutes of a cycle. Passing the signal to `fetch` bounds the
+   * body read as well as the connection, which is where a stalled transfer actually sits.
+   *
+   * Two callers need much more: Overpass runs queries carrying their own `[out:json][timeout:180]`
+   * directive, and the CKAN dumps are megabytes. Both ask explicitly.
+   */
+  timeoutMs?: number;
 }
 
 const BASE_BACKOFF_MS = 1_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** Carries the status code so callers can tell "slow down" apart from "broken". */
 export class HttpStatusError extends Error {
@@ -55,6 +67,7 @@ export async function fetchText(url: string, options: FetchOptions = {}): Promis
           accept: '*/*',
           ...options.headers,
         },
+        signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       });
 
       if (res.status === 429 || res.status === 403) {
@@ -71,6 +84,8 @@ export async function fetchText(url: string, options: FetchOptions = {}): Promis
       return await res.text();
     } catch (err) {
       if (err instanceof HttpStatusError && err.isRateLimit) throw err;
+      // A timeout is our side giving up, not the source refusing us, so it retries like any
+      // other transport failure and must never be mistaken for a rate limit.
       lastError = err;
     }
   }

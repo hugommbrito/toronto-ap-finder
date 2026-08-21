@@ -101,7 +101,13 @@ export class ListingVerifier {
     // The SDK also resolves ANTHROPIC_AUTH_TOKEN and `ant auth login` profiles, so absence
     // of the env var is not proof of absent credentials — but for a deployed service the
     // env var is the only path, and its absence is the useful signal.
-    this.client = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+    // The SDK defaults to a ten-minute timeout with two retries, which is up to half an hour
+    // inside verifyBeforeNotifying — and invisible, because verification fails open, so the
+    // symptom is a cycle that takes forever and then behaves exactly as if the key were unset.
+    // This was the longest unbounded stall in the codebase.
+    this.client = process.env.ANTHROPIC_API_KEY
+      ? new Anthropic({ timeout: 60_000, maxRetries: 1 })
+      : null;
   }
 
   get configured(): boolean {

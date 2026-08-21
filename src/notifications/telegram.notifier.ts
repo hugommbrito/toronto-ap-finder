@@ -7,6 +7,12 @@ import { loadEnv } from '@/config/env';
 import { buildMessage } from './message';
 import type { NotificationPayload, Notifier } from './notification.types';
 
+/**
+ * A hung send stalls a cycle exactly as effectively as a hung source, and this runs inside the
+ * notification loop of every one of them.
+ */
+const SEND_TIMEOUT_MS = 10_000;
+
 const API_BASE = 'https://api.telegram.org';
 
 @Injectable()
@@ -91,6 +97,7 @@ export class TelegramNotifier implements Notifier {
       const res = await fetch(`${API_BASE}/bot${this.token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         body: JSON.stringify({
           chat_id: chatId,
           text,
@@ -144,6 +151,7 @@ export class TelegramNotifier implements Notifier {
       const res = await fetch(`${API_BASE}/bot${this.token}/${method}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         body: JSON.stringify(body),
       });
       const parsed = (await res.json()) as { ok?: boolean; description?: string };

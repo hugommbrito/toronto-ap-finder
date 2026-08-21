@@ -19,7 +19,7 @@ import { ListingVerifier } from './verification/listing-verifier';
 /**
  * Database, seeded geography, profiles, the collection pipeline, health and operations.
  *
- * SchedulerService drives a cycle every 20 minutes; set CYCLE_ENABLED=false to run the
+ * SchedulerService drives each cycle at a jittered 15–35 minute gap; set CYCLE_ENABLED=false to run the
  * service without polling and drive cycles by hand instead. SourceRegistry owns the source
  * instances for the life of the process, which is what keeps a rate limiter's open circuit from
  * being forgotten between cycles.

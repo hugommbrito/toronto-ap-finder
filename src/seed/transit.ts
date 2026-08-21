@@ -66,12 +66,16 @@ export async function fetchOperationalStations(contactEmail?: string): Promise<S
   const [stationsRes, routesRes] = await Promise.all([
     fetchJson<OverpassResponse>(OVERPASS_URL, {
       method: 'POST',
+    // The query carries its own [out:json][timeout:180]; the client has to outlast it.
+    timeoutMs: 200_000,
       body: STATIONS_QUERY,
       contactEmail,
       headers: { 'content-type': 'text/plain' },
     }),
     fetchJson<OverpassResponse>(OVERPASS_URL, {
       method: 'POST',
+    // The query carries its own [out:json][timeout:180]; the client has to outlast it.
+    timeoutMs: 200_000,
       body: ROUTES_QUERY,
       contactEmail,
       headers: { 'content-type': 'text/plain' },

@@ -4,9 +4,9 @@ Monitors Greater Toronto rental listings, scores each one against one or more co
 tenant profiles, and notifies over Telegram only what clears the bar — with the score
 breakdown attached, so the weights can be calibrated instead of guessed.
 
-**Status: Phase 2 complete.** Kijiji runs end to end on a 20-minute cron, with confirmed
-delisting, a circuit breaker that survives restarts, and a Railway deployment. Phase 3
-(Rentals.ca, Zumper) is next.
+**Status: three sources live.** Kijiji, Zumper and CAPREIT run end to end on a jittered
+15–35 minute gap, with confirmed delisting, per-source circuit breakers, City inspection scores
+on the buildings that have them, and a Railway deployment.
 
 ## Setup
 
@@ -16,7 +16,7 @@ pnpm install
 docker compose up -d          # PostGIS on :5433
 pnpm db:migrate
 pnpm seed                     # ~1,090 daycares, 139 stations, 1 profile
-pnpm test                     # 376 tests (16 need a database, skipped without one)
+pnpm test                     # 430 tests (16 need a database, skipped without one)
 pnpm verify                   # acceptance checks against the real database
 pnpm probe                    # measures what each source does when we knock
 pnpm cycle:dry                # one full cycle, scores everything, sends nothing
@@ -327,8 +327,32 @@ about — which is why transit is now scored rather than cut.
 
 ## Running it
 
-A cycle runs every 20 minutes (`SchedulerService`). Set `CYCLE_ENABLED=false` to run the
-service without polling and drive cycles by hand instead.
+**A cycle runs at an unpredictable gap of 15 to 35 minutes** (`SchedulerService`). Set
+`CYCLE_ENABLED=false` to run the service without polling and drive cycles by hand instead.
+
+An interval of exactly 1200 seconds is a machine signature, which is why this is a
+self-rescheduling timer rather than a cron expression — `@Cron` cannot say "again in 23 minutes and
+41 seconds". Two consequences worth knowing. The gap is measured from **completion**, so the
+effective period is the gap plus however long the cycle took: four minutes of work on a
+fifteen-minute gap comes round every nineteen. And self-overlap became structurally impossible,
+since nothing is armed until the previous run returns. The chosen gap is logged every time, because
+a randomised schedule is otherwise impossible to verify from outside.
+
+The two chains are kept apart by a rule rather than by a fixed offset: if one is due within ninety
+seconds of the other, it waits a further two to four minutes. Cron gave that for free; two
+independently drifting clocks do not.
+
+**Requests are jittered on top of the measured floor, never instead of it.** Kijiji waits 12–18 s,
+Zumper 6–10 s, CAPREIT 5–8 s. The floors are measurements — 2 s earned Kijiji a 429 after two dozen
+requests and 6 s was refused on the next cycle's first request — so the addendum's suggestion of a
+2–5 s randomised gap is applied as the *tail*, not as the interval.
+
+**Nothing waits forever.** Every outbound request is bounded: 30 s by default, 10 s for a Telegram
+send, 60 s with a single retry for the model verifier, and explicit long leashes for the two callers
+that need them (Overpass carries its own 180 s directive, CKAN dumps are megabytes). Before this
+there was no timeout anywhere, so undici's 300 s defaults applied — and the verifier was worse, with
+an SDK default of ten minutes and two retries inside a path that fails open, so half an hour of
+stalled cycle looked exactly like an unset API key.
 
 Each cycle walks 2 search pages, hydrates at most 20 new listings, and spends 3 requests
 re-checking listings it has already surfaced. That is about 25 requests per cycle at a

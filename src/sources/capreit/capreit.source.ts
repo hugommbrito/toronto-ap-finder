@@ -39,7 +39,12 @@ export class CapreitSource implements BuildingListingSource {
   private readonly limiter: RateLimiter;
 
   constructor(private readonly contactEmail?: string) {
-    this.limiter = new RateLimiter({ name: this.name, minIntervalMs: this.minIntervalMs });
+    this.limiter = new RateLimiter({
+      name: this.name,
+      minIntervalMs: this.minIntervalMs,
+      // 5–8 s. The floor here is provisional, so the tail is proportionally smaller.
+      jitterMs: 3_000,
+    });
   }
 
   get paused(): boolean {

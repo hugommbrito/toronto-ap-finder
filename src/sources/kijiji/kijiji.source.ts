@@ -21,14 +21,19 @@ export class KijijiSource implements UnitListingSource {
    * requests; at 6 s a 23-request cycle succeeded but the next one was refused immediately,
    * so the limit is a rolling budget rather than a simple gap between calls. The brief's own
    * reasoning settles it: being more aggressive only brings the block forward. At 12 s a
-   * 20-listing hydration budget takes about four minutes, which still fits a 20-minute cycle.
+   * 20-listing hydration budget takes about four minutes, which fits the shortest cycle gap.
    */
   readonly minIntervalMs = 12_000;
 
   private readonly limiter: RateLimiter;
 
   constructor(private readonly contactEmail?: string) {
-    this.limiter = new RateLimiter({ name: this.name, minIntervalMs: this.minIntervalMs });
+    this.limiter = new RateLimiter({
+      name: this.name,
+      minIntervalMs: this.minIntervalMs,
+      // 12–18 s. The floor is measured and stays; the tail is what stops the gap being a signature.
+      jitterMs: 6_000,
+    });
   }
 
   get paused(): boolean {

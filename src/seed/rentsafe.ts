@@ -161,8 +161,8 @@ export function parseEvaluations(csv: string): SeedRentSafeBuilding[] {
 
 export async function fetchRentSafeBuildings(contactEmail?: string): Promise<SeedRentSafeBuilding[]> {
   const url = await resolveCsvUrl(contactEmail);
-  // 1.6 MB, and fetchText has no timeout to give it yet — see the pacing work in the plan.
-  const csv = await fetchText(url, { contactEmail });
+  // 1.6 MB, well past what the 30 s default is sized for.
+  const csv = await fetchText(url, { contactEmail, timeoutMs: 120_000 });
   const buildings = parseEvaluations(csv);
 
   if (buildings.length < MIN_EXPECTED_BUILDINGS) {

@@ -80,7 +80,7 @@ export interface CycleReport {
 /**
  * Two pages, not five.
  *
- * Page one carried 21 listings under 24 hours old, so a 20-minute cycle sees roughly four
+ * Page one carried 21 listings under 24 hours old, so a cycle at this cadence sees roughly four
  * genuinely new ads. Five pages was covering the same ground four times over and spending
  * requests against a rate limit that has already bitten twice.
  */
@@ -214,7 +214,7 @@ export class PipelineService {
 
     // Anything already hydrated is scored straight from the database. Without this, every
     // cycle would re-download the body of every candidate it has ever seen — which on a
-    // 20-minute schedule is exactly how a source starts answering 429.
+    // schedule this frequent is exactly how a source starts answering 429.
     // Keyed on the source that produced them. Hardcoding 'kijiji' here would silently return
     // nothing the moment anything else ran through this method, defeating the cache whose whole
     // job is to stop us re-downloading every candidate we have ever seen.
