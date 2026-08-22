@@ -5,7 +5,7 @@ import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
 import { ListingsRepository, MAX_MISSED_SWEEPS } from '@/listings/listings.repository';
-import type { ListingVerificationRow, SourceBuildingRow } from '@/db/schema';
+import type { ListingRow, ListingVerificationRow, SourceBuildingRow } from '@/db/schema';
 import type { BuildingEntry } from '@/sources/source.interface';
 import { TelegramNotifier } from '@/notifications/telegram.notifier';
 import type { TenantProfile } from '@/profiles/profile.schema';
@@ -74,6 +74,8 @@ export interface CycleReport {
   scored: number;
   notified: number;
   suppressedQuietHours: number;
+  /** Notified by draining the backlog rather than by being seen in this cycle's sweep. */
+  notifiedFromBacklog: number;
   errors: string[];
 }
 
@@ -144,6 +146,9 @@ export class PipelineService {
     }
 
     const geo = this.geoService.get();
+
+    await this.drainBacklog(profiles, geo, report, options);
+
     const source = this.registry.unitSources()[0];
     if (!source) {
       report.errors.push('no unit sources registered');
@@ -287,6 +292,10 @@ export class PipelineService {
       return report;
     }
     const geo = this.geoService.get();
+
+    // Before collecting anything new: whatever quiet hours deferred is older than anything
+    // this cycle will find, and for a building source nothing else will look at it again.
+    await this.drainBacklog(profiles, geo, report, options);
 
     // Sequential, not Promise.all. Each source holds its own limiter so parallel fetching would
     // be safe on the network, but they share this report and the database, and the budgets are
@@ -742,6 +751,81 @@ export class PipelineService {
     }
   }
 
+  /**
+   * Sends what quiet hours deferred but no later sweep picked up again.
+   *
+   * Suppression inside quiet hours deliberately claims nothing, so that the next cycle can
+   * deliver the listing instead. That relies on the listing being *seen* again, which a unit
+   * source does on every sweep but a building source only does when the building's watermark
+   * moves — so an advertisement first seen at 03:00 could be scored once, deferred, and then
+   * never re-examined. This drains by query instead, which does not depend on re-discovery.
+   *
+   * Runs at the top of a cycle, before new listings are collected: the backlog is older than
+   * anything this cycle will find, and a listing already delisted is skipped by the query.
+   */
+  private async drainBacklog(
+    profiles: TenantProfile[],
+    geo: GeoIndex,
+    report: CycleReport,
+    options: CycleOptions,
+  ): Promise<void> {
+    if (options.dryRun) return;
+
+    for (const profile of profiles) {
+      if (!options.ignoreQuietHours && inQuietHours(profile)) continue;
+
+      let pending: Array<{ listing: ListingRow; score: number }>;
+      try {
+        pending = await this.repo.findUnnotifiedMatches(profile.id, backlogSince());
+      } catch (err) {
+        report.errors.push(`backlog ${profile.id}: ${(err as Error).message}`);
+        continue;
+      }
+
+      for (const row of pending) {
+        if (row.score < profile.notify.minScore) continue;
+
+        const listing = listingFromRow(row.listing);
+        // Re-scored rather than trusted: the stored score was computed against whatever the
+        // geo and RentSafe indexes held at the time, and the profile may have changed since.
+        const matched = this.rentsafe.get().match(listing);
+        const building = matched
+          ? { rsn: matched.building.rsn, score: matched.building.score, yearBuilt: matched.building.yearBuilt }
+          : null;
+        const outcome = applyHardFilters(listing, profile, geo);
+        if (outcome.decision === 'reject') continue;
+
+        const score = scoreListing({ listing, profile, geo, building });
+        if (score.score < profile.notify.minScore) continue;
+
+        const verification = await this.verifyBeforeNotifying(listing, row.listing.id, profile, geo, report);
+        if (verification.rejected) continue;
+
+        const finalListing = verification.listing;
+        const finalScore =
+          finalListing === listing ? score : scoreListing({ listing: finalListing, profile, geo, building });
+        if (finalScore.score < profile.notify.minScore) continue;
+
+        const { messageId } = await this.notifier.send({
+          listing: finalListing,
+          listingId: row.listing.id,
+          fingerprint: row.listing.fingerprint,
+          profileId: profile.id,
+          chatIds: profile.notify.telegramChatIds,
+          score: finalScore,
+          includeMap: profile.notify.includeMap,
+          ...this.geoContext(finalListing, profile, geo),
+          unverified: verification.note ? [{ field: 'layout', reason: verification.note }] : [],
+        });
+        if (messageId) {
+          report.notified += 1;
+          report.notifiedFromBacklog += 1;
+          this.logger.log(`backlog notify ${row.listing.sourceId} (score ${finalScore.score.toFixed(1)})`);
+        }
+      }
+    }
+  }
+
   private geoContext(
     listing: TriageListing,
     profile: TenantProfile,
@@ -831,6 +915,19 @@ export function inQuietHours(profile: TenantProfile, now: Date = new Date()): bo
   return start <= end ? hour >= start && hour < end : hour >= start || hour < end;
 }
 
+/**
+ * How far back the backlog drain looks.
+ *
+ * Long enough to cover a full quiet-hours window plus the gap until the first cycle that can
+ * act on it, short enough that a listing nobody sent for days is not suddenly delivered as if
+ * it were new. A unit that is still worth seeing after this long will be re-found by a sweep.
+ */
+const BACKLOG_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function backlogSince(now: Date = new Date()): Date {
+  return new Date(now.getTime() - BACKLOG_WINDOW_MS);
+}
+
 function emptyReport(): CycleReport {
   return {
     pagesFetched: 0,
@@ -856,6 +953,7 @@ function emptyReport(): CycleReport {
     delisted: 0,
     scored: 0,
     notified: 0,
+    notifiedFromBacklog: 0,
     suppressedQuietHours: 0,
     errors: [],
   };

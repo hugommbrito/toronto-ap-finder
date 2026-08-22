@@ -12,6 +12,7 @@ import {
   listings,
   matches,
   needsReview,
+  notifications,
   rejectionLog,
   type ListingRow,
 } from '@/db/schema';
@@ -491,6 +492,41 @@ export class ListingsRepository {
           createdAt: sql`now()`,
         },
       });
+  }
+
+  /**
+   * Matches that cleared the notification bar but never had a notification sent.
+   *
+   * This exists because suppression during quiet hours is a *deferral*: nothing is claimed,
+   * on the assumption that the next cycle will see the listing again and send it then. For a
+   * building source that assumption fails — a listing is only re-evaluated when its building's
+   * watermark moves, so an advertisement first seen at 03:00 can be scored once, suppressed,
+   * and never looked at again. Draining by query instead of by re-discovery is what closes
+   * that window.
+   *
+   * `minScore` is not applied here; the caller holds the profile and applies its own bar.
+   */
+  async findUnnotifiedMatches(profileId: string, since: Date): Promise<Array<{ listing: ListingRow; score: number }>> {
+    const rows = await this.db
+      .select({ listing: listings, score: matches.score })
+      .from(matches)
+      .innerJoin(listings, eq(listings.id, matches.listingId))
+      .leftJoin(
+        notifications,
+        and(eq(notifications.profileId, matches.profileId), eq(notifications.fingerprint, listings.fingerprint)),
+      )
+      .where(
+        and(
+          eq(matches.profileId, profileId),
+          gte(matches.createdAt, since),
+          isNull(notifications.id),
+          // A delisted unit is not worth anyone's attention, however well it scored.
+          isNull(listings.delistedAt),
+        ),
+      )
+      .orderBy(desc(matches.score));
+
+    return rows.map((r) => ({ listing: r.listing, score: Number(r.score) }));
   }
 
   async upsertMatch(listingId: string, profileId: string, result: ScoreResult): Promise<void> {

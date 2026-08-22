@@ -134,7 +134,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `cycle done in ${Math.round((Date.now() - startedAt) / 1000)}s — ` +
           `seen ${report.listingsSeen}, hydrated ${report.hydrated}, scored ${report.scored}, ` +
-          `notified ${report.notified}, delisted ${report.delisted}` +
+          `notified ${report.notified}` +
+          (report.notifiedFromBacklog > 0 ? ` (${report.notifiedFromBacklog} from backlog)` : '') +
+          `, delisted ${report.delisted}` +
           (report.errors.length > 0 ? ` — ${report.errors.length} error(s)` : ''),
       );
     } catch (err) {
@@ -173,6 +175,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
           `${report.buildingsSeen} buildings seen, ${report.buildingsExpanded} opened ` +
           `(${report.buildingsDeferred} waiting), ${report.unitsFound} units, ` +
           `scored ${report.scored}, notified ${report.notified}` +
+          (report.notifiedFromBacklog > 0 ? ` (${report.notifiedFromBacklog} from backlog)` : '') +
           (report.errors.length > 0 ? ` — ${report.errors.length} error(s)` : ''),
       );
     } catch (err) {
