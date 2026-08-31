@@ -2,6 +2,7 @@ import { boolean, integer, pgTable, text, timestamp, unique, uuid } from 'drizzl
 import { listings } from './listings';
 
 export type VerificationConfidence = 'high' | 'medium' | 'low';
+export type VerificationParking = 'included' | 'paid_extra' | 'available' | 'none' | 'not_stated';
 
 /**
  * What a model read in the advertisement text, versus what the source's structured fields
@@ -27,6 +28,10 @@ export const listingVerifications = pgTable(
     isEntireUnit: boolean('is_entire_unit'),
     /** True when the unit is one part of a house split among separate households. */
     isSplitDwelling: boolean('is_split_dwelling'),
+    /** Floor area the prose states, in square feet; null when the ad never says. */
+    areaSqft: integer('area_sqft'),
+    /** What the prose says about parking for this unit. */
+    parking: text('parking').$type<VerificationParking>(),
     confidence: text('confidence').$type<VerificationConfidence>(),
     /** The phrase the verdict rests on — the whole point of the audit trail. */
     evidence: text('evidence'),

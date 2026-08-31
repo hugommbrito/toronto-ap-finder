@@ -42,7 +42,8 @@ const GTA_CITY_SLUGS = ['toronto', 'north-york', 'etobicoke', 'scarborough', 'ea
  * CAPREIT marks conditional amenities with an asterisk — `Parking*`, `Storage*` — and never says
  * what the asterisk means. Reading those as `true` would turn a disclaimer into a promise, so
  * they are left unknown. This is the same discipline the rest of the project applies to a missing
- * field: an ambiguous statement is `null`, never `false` and never `true`.
+ * field: an ambiguous statement is `null`, never `false` and never `true`. The one carve-out is
+ * parking, where "exists on unstated terms" has its own field — see hasQualifiedAmenity below.
  */
 const PARKING_TAGS = ['parking', 'garage'];
 const LOCKER_TAGS = ['storage', 'locker'];
@@ -241,6 +242,20 @@ function hasUnqualifiedAmenity(amenities: string[], needles: string[], excluded:
   });
 }
 
+/**
+ * The asterisked claims the function above refuses. `Parking*` still says parking *exists* at
+ * the building — it only leaves the terms open — and every sampled building writes it exactly
+ * that way, so refusing the claim entirely put the whole source in "ad does not mention
+ * parking" review. Existence-on-unstated-terms is precisely what `parkingAvailable` records.
+ */
+function hasQualifiedAmenity(amenities: string[], needles: string[]): boolean {
+  return amenities.some((a) => {
+    if (!a.includes('*')) return false;
+    const lower = a.toLowerCase();
+    return needles.some((n) => lower.includes(n));
+  });
+}
+
 const UNIT_BLOCK = /<li class="property-options-list-item"([^>]*)>([\s\S]*?)<\/li>\s*<\/ul>\s*<\/li>/g;
 
 /**
@@ -294,6 +309,11 @@ export function parseBuildingPage(html: string): TriageListing[] {
       rentBase,
       parkingIncluded: hasUnqualifiedAmenity(building.amenities, PARKING_TAGS) ? true : null,
       parkingCost: null,
+      parkingAvailable:
+        !hasUnqualifiedAmenity(building.amenities, PARKING_TAGS) &&
+        hasQualifiedAmenity(building.amenities, PARKING_TAGS)
+          ? true
+          : null,
       utilitiesIncluded: UTILITY_TAGS.filter(([tag]) =>
         building.amenities.some((a) => a.toLowerCase().includes(tag)),
       ).map(([, name]) => name),
@@ -303,6 +323,9 @@ export function parseBuildingPage(html: string): TriageListing[] {
       // prose in which one could be named, so every 2BR+den it publishes scores a tier low.
       dens: layout.dens,
       baths: null,
+      // The page's own "Up to 1210 Sq Ft*" is a ceiling over the whole building, asterisked on
+      // top — two qualifiers deep. A number that is not this unit's area is worse than none.
+      areaSqft: null,
       hasLocker: hasUnqualifiedAmenity(building.amenities, LOCKER_TAGS, NOT_A_LOCKER) ? true : null,
       inSuiteLaundry: hasUnqualifiedAmenity(building.amenities, IN_SUITE_LAUNDRY_TAGS) ? true : null,
       address: building.address,

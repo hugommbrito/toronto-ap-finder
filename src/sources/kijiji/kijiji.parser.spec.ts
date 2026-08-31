@@ -93,6 +93,18 @@ describe('parseSearchPage', () => {
     }
   });
 
+  it('reads areainfeet, treating the blank-as-zero the same as the tristates', () => {
+    // The fixture carries real values on some ads and "0" (left blank) on the rest.
+    const stated = page.listings.filter((l) => l.areaSqft !== null).map((l) => l.areaSqft);
+    expect(stated.length).toBeGreaterThan(0);
+    for (const sqft of stated) {
+      expect(sqft!).toBeGreaterThan(0);
+      expect(Number.isInteger(sqft!)).toBe(true);
+    }
+    // And at least one ad left it blank — which must arrive as null, never 0.
+    expect(page.listings.some((l) => l.areaSqft === null)).toBe(true);
+  });
+
   it('reads included utilities from the structured flags', () => {
     const anyUtilities = page.listings.some((l) => l.utilitiesIncluded.length > 0);
     expect(anyUtilities).toBe(true);

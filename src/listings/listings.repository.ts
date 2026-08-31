@@ -60,11 +60,13 @@ export class ListingsRepository {
         rentBase: String(listing.rentBase),
         parkingIncluded: listing.parkingIncluded,
         parkingCost: listing.parkingCost === null ? null : String(listing.parkingCost),
+        parkingAvailable: listing.parkingAvailable,
         utilitiesIncluded: listing.utilitiesIncluded,
         totalMonthlyCost: String(listing.totalMonthlyCost),
         beds: listing.beds,
         dens: listing.dens,
         baths: listing.baths === null ? null : String(listing.baths),
+        areaSqft: listing.areaSqft,
         hasLocker: listing.hasLocker,
         inSuiteLaundry: listing.inSuiteLaundry,
         address: listing.address,
@@ -84,15 +86,25 @@ export class ListingsRepository {
           // Only overwrite the body once hydration has actually produced one.
           rawText: sql`coalesce(excluded.raw_text, listings.raw_text)`,
           rentBase: sql`excluded.rent_base`,
-          parkingIncluded: sql`excluded.parking_included`,
-          parkingCost: sql`excluded.parking_cost`,
+          /**
+           * Coalesced like building_built_before_2018 below, and for the same reason: these
+           * are filled by hydration reading the ad body, and the next cycle's triage upsert
+           * carries null for them — a plain `excluded` erased what the text had already said,
+           * and the listing fell back into "ad does not mention parking" review every sweep.
+           */
+          parkingIncluded: sql`coalesce(excluded.parking_included, ${listings.parkingIncluded})`,
+          parkingCost: sql`coalesce(excluded.parking_cost, ${listings.parkingCost})`,
+          parkingAvailable: sql`coalesce(excluded.parking_available, ${listings.parkingAvailable})`,
           utilitiesIncluded: sql`excluded.utilities_included`,
           totalMonthlyCost: sql`excluded.total_monthly_cost`,
           beds: sql`excluded.beds`,
-          dens: sql`excluded.dens`,
+          // NOT NULL with default 0, so coalesce cannot protect it; the enrich rule is
+          // "a den can be added, never removed", and greatest() is that rule in SQL.
+          dens: sql`greatest(excluded.dens, ${listings.dens})`,
           baths: sql`excluded.baths`,
-          hasLocker: sql`excluded.has_locker`,
-          inSuiteLaundry: sql`excluded.in_suite_laundry`,
+          areaSqft: sql`coalesce(excluded.area_sqft, ${listings.areaSqft})`,
+          hasLocker: sql`coalesce(excluded.has_locker, ${listings.hasLocker})`,
+          inSuiteLaundry: sql`coalesce(excluded.in_suite_laundry, ${listings.inSuiteLaundry})`,
           address: sql`excluded.address`,
           city: sql`excluded.city`,
           lat: sql`excluded.lat`,
@@ -508,6 +520,8 @@ export class ListingsRepository {
           dens: sql`excluded.dens`,
           isEntireUnit: sql`excluded.is_entire_unit`,
           isSplitDwelling: sql`excluded.is_split_dwelling`,
+          areaSqft: sql`excluded.area_sqft`,
+          parking: sql`excluded.parking`,
           confidence: sql`excluded.confidence`,
           evidence: sql`excluded.evidence`,
           notes: sql`excluded.notes`,

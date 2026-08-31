@@ -51,11 +51,19 @@ function listing(overrides: Partial<ScorableListing> = {}): ScorableListing {
     totalMonthlyCost: 2700,
     beds: 3,
     dens: 0,
+    // The tri-states and area default to null so areaFit, parkingConfirmed and bathrooms
+    // drop out of the denominator — every numeric assertion written before those components
+    // existed (the 2BR parity bounds especially) rests on exactly that.
+    baths: null,
+    areaSqft: null,
     lat: ORIGIN.lat,
     lng: ORIGIN.lng,
     // Toronto by default, so every pre-existing case keeps full daycare coverage and the
     // behaviour it was written against. Coverage cases set this explicitly.
     city: 'City of Toronto',
+    parkingIncluded: null,
+    parkingCost: null,
+    parkingAvailable: null,
     hasLocker: null,
     inSuiteLaundry: null,
     buildingBuiltBefore2018: null,
@@ -229,6 +237,7 @@ describe('transit as a score rather than a cut', () => {
         totalMonthlyCost: 2900,
         parkingIncluded: true,
         parkingCost: null,
+        parkingAvailable: null,
         city: 'Toronto',
         lat: ORIGIN.lat,
         lng: ORIGIN.lng,
@@ -254,6 +263,7 @@ describe('transit as a score rather than a cut', () => {
         totalMonthlyCost: 2900,
         parkingIncluded: true,
         parkingCost: null,
+        parkingAvailable: null,
         city: 'Toronto',
         lat: ORIGIN.lat,
         lng: ORIGIN.lng,
@@ -270,7 +280,8 @@ describe('transit as a score rather than a cut', () => {
     const result = scoreListing({ listing: listing(), profile: PROFILE, geo: futureOnly });
     expect(result.rawComponents.transitOperational).toBe(0);
     expect(result.rawComponents.transitFuture).toBe(1);
-    // The future line is worth 3 weight against 15; it cannot rescue the listing.
+    // The future line is worth 1 weight against the operational line's 4; it cannot rescue
+    // the listing.
     expect(result.breakdown.transitFuture!).toBeLessThan(5);
   });
 });
@@ -312,6 +323,106 @@ describe('bedroomFit — the layout ladder', () => {
     const result = scoreListing({ listing: listing(), profile: noTiers, geo: RICH_GEO });
     expect(result.breakdown.bedroomFit).toBeUndefined();
     expect(result.skipped).toContain('bedroomFit');
+  });
+});
+
+describe('areaFit — anchored on the 950 sq ft she lives in now', () => {
+  const fit = (areaSqft: number | null): number | null =>
+    scoreListing({ listing: listing({ areaSqft }), profile: PROFILE, geo: RICH_GEO }).rawComponents
+      .areaFit ?? null;
+
+  it('runs 0 at 800, half at 950, full at 1100', () => {
+    expect(fit(800)).toBe(0);
+    expect(fit(950)).toBeCloseTo(0.5, 6);
+    expect(fit(1100)).toBe(1);
+  });
+
+  it('clamps beyond both ends', () => {
+    expect(fit(600)).toBe(0);
+    expect(fit(1400)).toBe(1);
+  });
+
+  it('is indeterminate — not zero — when the ad never states an area', () => {
+    const result = scoreListing({ listing: listing({ areaSqft: null }), profile: PROFILE, geo: RICH_GEO });
+    expect(result.skipped).toContain('areaFit');
+  });
+
+  /**
+   * The trade she described, asserted end to end: a 3BR smaller than today's place is not
+   * worth the move, a 2BR+den larger than it already is. Weight 15 exists to make exactly
+   * this crossover happen; at 10 the cramped 3BR would still win.
+   */
+  it('lets a spacious 2BR+den outrank a cramped 3BR', () => {
+    const cramped3br = scoreListing({
+      listing: listing({ beds: 3, dens: 0, areaSqft: 850 }),
+      profile: PROFILE,
+      geo: RICH_GEO,
+    });
+    const spacious2brDen = scoreListing({
+      listing: listing({ beds: 2, dens: 1, areaSqft: 1100 }),
+      profile: PROFILE,
+      geo: RICH_GEO,
+    });
+    expect(spacious2brDen.score).toBeGreaterThan(cramped3br.score);
+    // A 3BR that actually buys space keeps its lead over both.
+    const spacious3br = scoreListing({
+      listing: listing({ beds: 3, dens: 0, areaSqft: 1100 }),
+      profile: PROFILE,
+      geo: RICH_GEO,
+    });
+    expect(spacious3br.score).toBeGreaterThan(spacious2brDen.score);
+  });
+});
+
+describe('parkingConfirmed — ranking what the hard filter lets through', () => {
+  const confirmed = (
+    overrides: Partial<
+      Pick<ScorableListing, 'parkingIncluded' | 'parkingCost' | 'parkingAvailable'>
+    >,
+  ): number | null =>
+    scoreListing({ listing: listing(overrides), profile: PROFILE, geo: RICH_GEO }).rawComponents
+      .parkingConfirmed ?? null;
+
+  it('pays full credit for parking included in the rent', () => {
+    expect(confirmed({ parkingIncluded: true })).toBe(1);
+  });
+
+  it('pays half for a priced spot — the money already counts against the total', () => {
+    expect(confirmed({ parkingIncluded: false, parkingCost: 150 })).toBe(0.5);
+  });
+
+  it('pays half for parking on unstated terms', () => {
+    expect(confirmed({ parkingAvailable: true })).toBe(0.5);
+  });
+
+  it('scores an explicit "no parking" as zero, not unknown', () => {
+    expect(confirmed({ parkingIncluded: false })).toBe(0);
+  });
+
+  it('is indeterminate — not zero — when the ad says nothing', () => {
+    const result = scoreListing({ listing: listing(), profile: PROFILE, geo: RICH_GEO });
+    expect(result.skipped).toContain('parkingConfirmed');
+  });
+});
+
+describe('bathrooms — a second bath is a tie-break, not a criterion', () => {
+  const bath = (baths: number | null): number | null =>
+    scoreListing({ listing: listing({ baths }), profile: PROFILE, geo: RICH_GEO }).rawComponents
+      .bathrooms ?? null;
+
+  it('runs 0 at one bath, half at a powder room, full at two', () => {
+    expect(bath(1)).toBe(0);
+    expect(bath(1.5)).toBeCloseTo(0.5, 6);
+    expect(bath(2)).toBe(1);
+  });
+
+  it('pays nothing extra beyond two', () => {
+    expect(bath(3)).toBe(1);
+  });
+
+  it('is indeterminate — not zero — when the ad never says', () => {
+    const result = scoreListing({ listing: listing({ baths: null }), profile: PROFILE, geo: RICH_GEO });
+    expect(result.skipped).toContain('bathrooms');
   });
 });
 
@@ -359,12 +470,16 @@ describe('bedroomFit vs rentBelowTarget — where the trade-off sits', () => {
 
   /**
    * ~23.4 points, against a maximum price advantage of ~23.6 — the near-exact tie the weights
-   * are built around. Both figures are over an effective denominator of 127, not the full 142:
-   * these fixtures carry no RentSafe match, so buildingScore (15) is null and drops out.
+   * are built around. Both figures are over an effective denominator of 127, not the full 168:
+   * these fixtures carry no RentSafe match, no stated area, no parking claim and no bath
+   * count, so buildingScore (15), areaFit (15), parkingConfirmed (6) and bathrooms (5) are
+   * all null and drop out.
    *
-   * The numbers moved when transit was cut for the car (155 -> 142) but the *relationship* did
-   * not, because bedroomFit and rentBelowTarget both kept their weights and so both rescale by
-   * the same denominator. That invariance is the thing worth protecting here.
+   * The numbers moved when transit was cut for the car (155 -> 142) and survived the post-car
+   * additions unchanged (sum 168, worst-common denominator still 127), because bedroomFit and
+   * rentBelowTarget both kept their weights and both rescale by the same denominator. That
+   * invariance is the thing worth protecting here — the bounds below break the moment a
+   * fixture in this block starts setting areaSqft, baths or a parking field.
    */
   it('costs a plain 2BR about 23 points of the final score', () => {
     const penalty = score(3, 0, 2900) - score(2, 0, 2900);
@@ -494,6 +609,7 @@ describe('applyHardFilters', () => {
       totalMonthlyCost: 3000,
       parkingIncluded: true,
       parkingCost: null,
+      parkingAvailable: null,
       city: 'City of Toronto',
       lat: ORIGIN.lat,
       lng: ORIGIN.lng,
@@ -546,6 +662,16 @@ describe('applyHardFilters', () => {
     const result = applyHardFilters(filterable({ parkingIncluded: null, parkingCost: null }), PROFILE, RICH_GEO);
     expect(result.decision).toBe('review');
     expect(result.reviews[0]?.field).toBe('parkingIncluded');
+  });
+
+  /** The CAPREIT `Parking*` case: parking exists at the building on unstated terms. */
+  it('accepts parking that exists on unstated terms, without a review', () => {
+    const result = applyHardFilters(
+      filterable({ parkingIncluded: null, parkingCost: null, parkingAvailable: true }),
+      PROFILE,
+      RICH_GEO,
+    );
+    expect(result.decision).toBe('pass');
   });
 
   /**
@@ -662,7 +788,7 @@ describe('configurability — adding a profile must not touch code', () => {
   };
 
   it('evaluates a completely different bedroom rule with the same engine', () => {
-    const oneBedDen = { beds: 1, dens: 1, totalMonthlyCost: 2200, parkingIncluded: null, parkingCost: null, city: 'Toronto', lat: ORIGIN.lat, lng: ORIGIN.lng, availableFrom: null };
+    const oneBedDen = { beds: 1, dens: 1, totalMonthlyCost: 2200, parkingIncluded: null, parkingCost: null, parkingAvailable: null, city: 'Toronto', lat: ORIGIN.lat, lng: ORIGIN.lng, availableFrom: null };
     expect(applyHardFilters(oneBedDen, hugo, RICH_GEO).decision).toBe('pass');
     // The same unit fails the sister's rule, from the same code.
     expect(applyHardFilters(oneBedDen, PROFILE, RICH_GEO).decision).toBe('reject');
@@ -728,6 +854,7 @@ describe('daycare coverage outside Toronto', () => {
       totalMonthlyCost: 2800,
       parkingIncluded: true,
       parkingCost: null,
+      parkingAvailable: null,
       city: 'Mississauga',
       lat: MISSISSAUGA.lat,
       lng: MISSISSAUGA.lng,
@@ -901,9 +1028,9 @@ describe('daycare coverage outside Toronto', () => {
     });
 
     /**
-     * The car, in one assertion. Transit was 18 of 155 weight and is now 5 of 142, so an
-     * address with no station within walking distance forfeits ~3.5 points rather than ~11.6.
-     * That is most of what used to make the 905 look bad rather than merely different.
+     * The car, in one assertion. Transit was 18 of 155 weight and is now 5 of a 168 sum, so
+     * an address with no station within walking distance forfeits a few points rather than
+     * ~11.6. That is most of what used to make the 905 look bad rather than merely different.
      */
     it('costs an address with no nearby station only a few points', () => {
       const geoWithFarStation = new GeoIndex([], [station({ id: 'far', lat: 44.5, lng: -80.0 })]);

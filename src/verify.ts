@@ -49,7 +49,18 @@ const YONGE_EGLINTON = { lat: 43.7055, lng: -79.3982, city: 'Toronto' };
 /** Keelesdale — a new Line 5 stop, the corridor this profile is aimed at. */
 const KEELESDALE = { lat: 43.6889, lng: -79.4795, city: 'Toronto' };
 
-const AMENITIES = { hasLocker: true, inSuiteLaundry: true, buildingBuiltBefore2018: true };
+const AMENITIES = {
+  hasLocker: true,
+  inSuiteLaundry: true,
+  buildingBuiltBefore2018: true,
+  // Parking pinned to "included" and the rest unknown, so every ladder entry shares one
+  // denominator and the assertions test the axis the ladder varies, nothing else.
+  parkingIncluded: true,
+  parkingCost: null,
+  parkingAvailable: null,
+  baths: null,
+  areaSqft: null,
+};
 const THREE_BED = { beds: 3, dens: 0 };
 
 /**
@@ -70,6 +81,16 @@ const LAYOUT_LADDER: { label: string; listing: ScorableListing }[] = [
   { label: '3BR, 2900 (separate office)', listing: { totalMonthlyCost: 2900, beds: 3, dens: 0, ...YONGE_EGLINTON, ...AMENITIES } },
   { label: '2BR + den, 2900 (den as office)', listing: { totalMonthlyCost: 2900, beds: 2, dens: 1, ...YONGE_EGLINTON, ...AMENITIES } },
   { label: '2BR, 2900 (office in the bedroom)', listing: { totalMonthlyCost: 2900, beds: 2, dens: 0, ...YONGE_EGLINTON, ...AMENITIES } },
+];
+
+/**
+ * Area ladder at one fixed price, layout and location, so only the square footage moves.
+ * 950 is the apartment she lives in now — the curve's anchor.
+ */
+const AREA_LADDER: { label: string; listing: ScorableListing }[] = [
+  { label: '3BR, 2900, 1100 sq ft (buys real space)', listing: { totalMonthlyCost: 2900, ...THREE_BED, ...YONGE_EGLINTON, ...AMENITIES, areaSqft: 1100 } },
+  { label: '3BR, 2900, 950 sq ft (same as today)', listing: { totalMonthlyCost: 2900, ...THREE_BED, ...YONGE_EGLINTON, ...AMENITIES, areaSqft: 950 } },
+  { label: '3BR, 2900, 800 sq ft (smaller than today)', listing: { totalMonthlyCost: 2900, ...THREE_BED, ...YONGE_EGLINTON, ...AMENITIES, areaSqft: 800 } },
 ];
 
 /**
@@ -125,13 +146,22 @@ async function main(): Promise<void> {
       failures.push(`layout ladder is not ordered: ${layout.map((s) => s.toFixed(1)).join(' / ')}`);
     }
 
-    // --- 2c. what the current weights are actually trading off ---
+    // --- 2c. the area ladder, at one fixed price and layout ---
+    console.log('area ladder (same location, rent and layout, only square footage varies):');
+    const area = AREA_LADDER.map((s) => printScore(s.label, sister, geo, s.listing));
+    console.log();
+    if (!(area[0]! > area[1]! && area[1]! > area[2]!)) {
+      failures.push(`area ladder is not ordered: ${area.map((s) => s.toFixed(1)).join(' / ')}`);
+    }
+
+    // --- 2d. what the current weights are actually trading off ---
     console.log('location comparison (same rent and layout, different neighbourhoods):');
     const pair = LOCATION_PAIR.map((s) => printScore(s.label, sister, geo, s.listing));
     const gap = Math.abs(pair[0]! - pair[1]!);
     console.log(
       `\n  worth in final points:  500 of rent = ${(ladder[0]! - ladder[2]!).toFixed(1)}` +
         `   |  3BR over plain 2BR = ${(layout[0]! - layout[2]!).toFixed(1)}` +
+        `   |  1,100 sq ft over 800 = ${(area[0]! - area[2]!).toFixed(1)}` +
         `   |  location = ${gap.toFixed(1)}`,
     );
     console.log('  If any of those trades looks wrong, change a weight in the profile row — not the code.\n');
@@ -141,6 +171,7 @@ async function main(): Promise<void> {
       totalMonthlyCost: 2900,
       parkingIncluded: true,
       parkingCost: null,
+      parkingAvailable: null,
       city: 'City of Toronto',
       lat: 43.7055,
       lng: -79.3982,

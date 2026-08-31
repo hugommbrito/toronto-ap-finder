@@ -14,6 +14,8 @@ export interface ParkingFinding {
   included: boolean | null;
   /** Monthly cost when parking is offered as a paid extra. */
   cost: number | null;
+  /** Parking exists on unstated terms — "parking available" with no price attached. */
+  available: boolean;
 }
 
 const NEGATION_WINDOW = 24;
@@ -135,19 +137,72 @@ const PARKING_NONE = [
   /\bwithout\s+parking\b/g,
 ];
 
+/**
+ * The weakest claim, checked last: parking exists, terms unstated. "Parking available" with
+ * a price hits PARKING_COST first; "parking included" hits PARKING_INCLUDED. What is left
+ * here is the ad that offers parking and never says on what terms.
+ */
+const PARKING_AVAILABLE = [
+  /\bparking\s+(?:is\s+)?available\b/g,
+  /\bparking\s+(?:spot|space)s?\s+available\b/g,
+];
+
 export function extractParking(text: string): ParkingFinding {
-  if (findFirst(text, PARKING_NONE)) return { included: false, cost: null };
+  if (findFirst(text, PARKING_NONE)) return { included: false, cost: null, available: false };
 
   const priced = findFirst(text, PARKING_COST);
   if (priced?.[1] !== undefined) {
     const cost = Number.parseInt(priced[1], 10);
-    if (Number.isFinite(cost)) return { included: false, cost };
+    if (Number.isFinite(cost)) return { included: false, cost, available: false };
   }
 
   const included = findFirst(text, PARKING_INCLUDED);
-  if (included && !isNegated(text, included.index)) return { included: true, cost: null };
+  if (included && !isNegated(text, included.index)) {
+    return { included: true, cost: null, available: false };
+  }
 
-  return { included: null, cost: null };
+  const available = findFirst(text, PARKING_AVAILABLE);
+  if (available && !isNegated(text, available.index)) {
+    return { included: null, cost: null, available: true };
+  }
+
+  return { included: null, cost: null, available: false };
+}
+
+// ---------------------------------------------------------------------------
+// Floor area
+// ---------------------------------------------------------------------------
+
+/**
+ * normalizeText turns every comma into a space, so "1,200 Sq. Ft." arrives here as
+ * "1 200 sq. ft." — the thousands form is digits split by a single space, and it must be
+ * tried first or the plain form would read the "200" and call the loft a bachelor.
+ */
+const SQFT_UNIT = String.raw`(?:sq\.?\s*(?:ft\b\.?|feet\b|foot\b)|sqft\b|sf\b|square\s+f(?:ee|oo)t\b)`;
+
+const SQFT_PATTERNS = [
+  new RegExp(String.raw`\b(\d{1,2}) (\d{3})\s*${SQFT_UNIT}`, 'g'),
+  new RegExp(String.raw`\b(\d{3,4})\s*${SQFT_UNIT}`, 'g'),
+];
+
+/** "Up to 1210 sq ft" is a ceiling over a whole building, not this unit's area. */
+const SQFT_UPPER_BOUND = /\bup\s+to\s*$/;
+
+/** Nothing rentable is under 250 sq ft, and five digits is a lot, not a unit. */
+const SQFT_MIN = 250;
+const SQFT_MAX = 10_000;
+
+export function extractSqft(text: string): number | null {
+  const hit = findFirst(text, SQFT_PATTERNS);
+  if (!hit) return null;
+  if (SQFT_UPPER_BOUND.test(text.slice(Math.max(0, hit.index - NEGATION_WINDOW), hit.index))) {
+    return null;
+  }
+  const raw = hit[2] !== undefined ? `${hit[1]}${hit[2]}` : hit[1];
+  if (raw === undefined) return null;
+  const sqft = Number.parseInt(raw, 10);
+  if (!Number.isFinite(sqft) || sqft < SQFT_MIN || sqft > SQFT_MAX) return null;
+  return sqft;
 }
 
 // ---------------------------------------------------------------------------

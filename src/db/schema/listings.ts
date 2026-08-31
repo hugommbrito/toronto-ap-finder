@@ -29,12 +29,20 @@ export const listings = pgTable(
     rentBase: numeric('rent_base', { precision: 10, scale: 2 }).notNull(),
     parkingIncluded: boolean('parking_included'),
     parkingCost: numeric('parking_cost', { precision: 10, scale: 2 }),
+    /**
+     * Parking exists at the building on terms the ad does not state — CAPREIT's `Parking*`,
+     * prose like "parking available". Included and priced are the other two columns; this one
+     * is only ever the weaker claim, never set when either of those is known.
+     */
+    parkingAvailable: boolean('parking_available'),
     utilitiesIncluded: text('utilities_included').array().notNull().default([]),
     totalMonthlyCost: numeric('total_monthly_cost', { precision: 10, scale: 2 }).notNull(),
 
     beds: integer('beds'),
     dens: integer('dens').notNull().default(0),
     baths: numeric('baths', { precision: 3, scale: 1 }),
+    /** Advertised floor area in square feet; null when the ad never said, never 0. */
+    areaSqft: integer('area_sqft'),
 
     hasLocker: boolean('has_locker'),
     inSuiteLaundry: boolean('in_suite_laundry'),

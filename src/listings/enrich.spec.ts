@@ -12,11 +12,13 @@ function triage(overrides: Partial<TriageListing> = {}): TriageListing {
     rentBase: 3000,
     parkingIncluded: null,
     parkingCost: null,
+    parkingAvailable: null,
     utilitiesIncluded: [],
     totalMonthlyCost: 3000,
     beds: 2,
     dens: 0,
     baths: 1,
+    areaSqft: null,
     hasLocker: null,
     inSuiteLaundry: null,
     address: '100 Queens Quay W, Toronto, ON',
@@ -133,6 +135,47 @@ describe('enrichFromText', () => {
     expect(result.rawText).not.toContain('<');
   });
 
+  it('reads the floor area from the text', () => {
+    const result = enrichFromText(triage(), '<p>Bright corner suite, 1,050 sq ft with a balcony.</p>');
+    expect(result.areaSqft).toBe(1050);
+  });
+
+  it('never argues with a structured area', () => {
+    const result = enrichFromText(triage({ areaSqft: 950 }), '<p>Approximately 800 sq ft.</p>');
+    expect(result.areaSqft).toBe(950);
+  });
+
+  /**
+   * Regression: the structured parking cost used to be discarded — `parkingFinding.cost`
+   * was read where `listing.parkingCost ?? parkingFinding.cost` was meant, so a source's
+   * own $175 vanished whenever the ad text stayed silent, and the monthly total with it.
+   */
+  it('keeps a structured parking cost when the text says nothing', () => {
+    const result = enrichFromText(
+      triage({ parkingIncluded: false, parkingCost: 175 }),
+      '<p>Close to transit and shops.</p>',
+    );
+    expect(result.parkingCost).toBe(175);
+    expect(result.totalMonthlyCost).toBe(3175);
+  });
+
+  it('records priceless "parking available" as existence on unstated terms', () => {
+    const result = enrichFromText(triage(), '<p>Parking available. Ask the landlord.</p>');
+    expect(result.parkingAvailable).toBe(true);
+    expect(result.parkingIncluded).toBeNull();
+    expect(result.parkingCost).toBeNull();
+    // Nothing invented: the unknown cost never reaches the total.
+    expect(result.totalMonthlyCost).toBe(3000);
+  });
+
+  it('drops the availability claim once stronger parking facts exist', () => {
+    const priced = enrichFromText(
+      triage({ parkingAvailable: true }),
+      '<p>Parking available for $150/month.</p>',
+    );
+    expect(priced.parkingCost).toBe(150);
+    expect(priced.parkingAvailable).toBeNull();
+  });
 });
 
 describe('layoutConflictOf', () => {

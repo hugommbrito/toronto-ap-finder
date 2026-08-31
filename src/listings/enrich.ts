@@ -6,6 +6,7 @@ import {
   extractInSuiteLaundry,
   extractLocker,
   extractParking,
+  extractSqft,
   extractUtilities,
 } from '@/extraction/rules';
 import type { TriageListing } from './listing.types';
@@ -25,8 +26,14 @@ export function enrichFromText(listing: TriageListing, descriptionHtml: string):
 
   const parkingFinding = extractParking(text);
   const parkingIncluded = listing.parkingIncluded ?? parkingFinding.included;
-  // Only meaningful when parking is not already included in the rent.
-  const parkingCost = parkingIncluded === true ? null : parkingFinding.cost;
+  // Only meaningful when parking is not already included in the rent. Structured cost wins
+  // over the text here too — a source's own $150 is not something a regex should argue with.
+  const parkingCost = parkingIncluded === true ? null : (listing.parkingCost ?? parkingFinding.cost);
+  // The weaker claim: only worth recording while neither inclusion nor a price is known.
+  const parkingAvailable =
+    parkingIncluded !== null || parkingCost !== null
+      ? null
+      : (listing.parkingAvailable ?? (parkingFinding.available ? true : null));
 
   /**
    * Posters routinely put "2+1" in the title while leaving the dropdown at 2, so an explicit
@@ -50,7 +57,9 @@ export function enrichFromText(listing: TriageListing, descriptionHtml: string):
     dens,
     parkingIncluded,
     parkingCost,
+    parkingAvailable,
     utilitiesIncluded,
+    areaSqft: listing.areaSqft ?? extractSqft(text),
     hasLocker: listing.hasLocker ?? extractLocker(text),
     inSuiteLaundry: listing.inSuiteLaundry ?? extractInSuiteLaundry(text),
     buildingBuiltBefore2018: listing.buildingBuiltBefore2018 ?? extractBuiltBefore2018(text),

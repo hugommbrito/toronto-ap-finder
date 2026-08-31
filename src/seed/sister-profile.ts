@@ -119,11 +119,15 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
         /**
          * Weighted to make a plain 2BR surface only when it is exceptional.
          *
-         * The weights sum to 142, but the number that decides anything is the **effective**
-         * denominator, because null components drop out of it (see scorer.ts). Two cases:
+         * The weights sum to 168, but the number that decides anything is the **effective**
+         * denominator, because null components drop out of it (see scorer.ts). The cases that
+         * matter:
          *
-         * | 142 | everything scored, i.e. the ad matched a RentSafeTO building |
-         * | 127 | the common case — no match, so buildingScore (15) is null    |
+         * | 168 | everything scored: RentSafeTO match, area, parking and baths all known     |
+         * | 153 | no RentSafeTO match (buildingScore null) — most condo listings             |
+         * | 127 | a terse Kijiji ad: buildingScore, areaFit, parkingConfirmed AND bathrooms  |
+         * |     | all null. Exactly the old worst case, so the parity arithmetic held below  |
+         * |     | is unchanged from before these components existed.                         |
          *
          * At 127, bedroomFit is worth at most 27.6 final points and rentBelowTarget 23.6. A
          * plain 2BR sits on the 0.15 tier, so it gives up 23.4 points of layout against a
@@ -135,6 +139,16 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
          * 155 once buildingScore was added. Keep the two labelled separately.)
          */
         bedroomFit: 35,
+        /**
+         * 950 sq ft is the apartment she lives in now, and it anchors the component's curve
+         * (0 at 800, 1 at 1,100 — see areaFit). 15 is chosen to be strong enough to cross
+         * layouts, because that is how she framed it: a 3BR smaller than today's place is not
+         * worth the move, a 2BR+den larger than it already is. At 15, an 1,100 sq ft 2BR+den
+         * (24.5 + 15) edges an 850 sq ft 3BR (35 + 2.5); at 10 it never could. Unknown area
+         * is null and drops out, so the two-thirds of Kijiji ads that leave the field blank
+         * compete unpunished.
+         */
+        areaFit: 15,
         // Rent is the second largest lever: the target sits well below market, so the
         // ranking has to be able to tell 2,750 from 3,150.
         rentBelowTarget: 30,
@@ -162,6 +176,20 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
          * next to the 416 rather than merely different.
          */
         transitOperational: 4,
+        /**
+         * The car needs somewhere to live, but the hard filter already guarantees parking
+         * exists or is purchasable for everything scored. This pays the remaining difference:
+         * included in the rent (1.0) against priced or on unstated terms (0.5). Six points of
+         * weight, so a confirmed free spot beats "available, cost unstated" without deciding
+         * the ranking by itself.
+         */
+        parkingConfirmed: 6,
+        /**
+         * Two working adults and a child: a second bathroom is worth a real tie-break and no
+         * more. Kijiji and Zumper state baths structurally; CAPREIT never does, so its
+         * listings simply skip the component.
+         */
+        bathrooms: 5,
         locker: 5,
         rentControlled: 5,
         /**
@@ -189,11 +217,13 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
        * have silenced exactly the case this profile is meant to catch. 65 keeps that one
        * and still holds back a bit over half of what gets scored.
        *
-       * ⚠️ 65 was calibrated against weights summing to 155, and they now sum to 142 with
-       * transit cut from 18 to 5. Every score shifted: a listing that had full marks on
-       * transit lost ~7 points, and one far from any station gained relative ground. The
-       * calibration this number rests on no longer describes the scale it is measuring, so
-       * it is provisional until a cycle has been run and the distribution looked at.
+       * ⚠️ 65 was calibrated against weights summing to 155. They then went to 142 (transit
+       * cut from 18 to 5) and now to 168 (areaFit 15, parkingConfirmed 6, bathrooms 5 added
+       * for the post-car reality). Every score shifted twice: a listing far from transit
+       * gained ground, and one with a stated area now sits on a denominator up to 41 points
+       * larger than a terse ad's. The calibration this number rests on no longer describes
+       * the scale it is measuring, so it is provisional until a cycle has been run against
+       * the 168-sum weights and the distribution looked at.
        *
        * This is still the number to move first if the feed feels wrong in either direction,
        * and moving it is one UPDATE against this row.

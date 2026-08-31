@@ -177,6 +177,18 @@ describe('parseBuildingPage', () => {
     expect(unit!.hasLocker).toBeNull();
   });
 
+  it('reads `Parking*` as existence on unstated terms — not a promise, not silence', () => {
+    // Every sampled building writes the amenity exactly this way. Refusing the claim entirely
+    // held the whole source in "ad does not mention parking" review; parkingAvailable is the
+    // third state that says what the asterisk actually says.
+    const [unit] = parseBuildingPage(wellesley);
+    expect(unit!.parkingAvailable).toBe(true);
+  });
+
+  it('never reads the "Up to X Sq Ft*" building ceiling as this unit\'s area', () => {
+    for (const unit of parseBuildingPage(wellesley)) expect(unit.areaSqft).toBeNull();
+  });
+
   it('does not mistake a bike room for a storage locker', () => {
     // Wellesley lists an asterisked `Storage*` and an unasterisked `Bicycle Storage`. A plain
     // search for "storage" reads the second as a locker and awards the credit to every building

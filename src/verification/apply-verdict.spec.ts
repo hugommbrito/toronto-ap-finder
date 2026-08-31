@@ -12,8 +12,10 @@ const PERMISSIVE: TenantProfile = { ...STRICT, hard: { ...STRICT.hard, allowSpli
 function listing(overrides: Partial<TriageListing> = {}): TriageListing {
   return {
     source: 'kijiji', sourceId: '1', url: 'u', title: 'Unit', rawText: 'body',
-    rentBase: 2400, parkingIncluded: true, parkingCost: null, utilitiesIncluded: [],
-    totalMonthlyCost: 2400, beds: 3, dens: 0, baths: 1, hasLocker: null, inSuiteLaundry: null,
+    rentBase: 2400, parkingIncluded: true, parkingCost: null, parkingAvailable: null,
+    utilitiesIncluded: [],
+    totalMonthlyCost: 2400, beds: 3, dens: 0, baths: 1, areaSqft: null,
+    hasLocker: null, inSuiteLaundry: null,
     address: '1 Main St', city: 'Toronto', lat: 43.7, lng: -79.4,
     availableFrom: null, postedAt: null, buildingBuiltBefore2018: null,
     ...overrides,
@@ -22,6 +24,7 @@ function listing(overrides: Partial<TriageListing> = {}): TriageListing {
 
 const verdict = (o: Partial<Verdict> = {}): Verdict => ({
   bedrooms: 3, dens: 0, isEntireUnit: true, isSplitDwelling: false,
+  areaSqft: null, parking: 'not_stated',
   confidence: 'high', evidence: '', notes: '', ...o,
 });
 
@@ -70,6 +73,79 @@ describe('applyVerdict', () => {
     const outcome = applyVerdict(listing({ beds: null }), verdict({ bedrooms: 2 }), STRICT);
     expect(outcome.applied).toBe(false);
     expect(outcome.listing.beds).toBeNull();
+  });
+});
+
+describe('applyVerdict — area and parking', () => {
+  it('fills in an area the source never stated', () => {
+    const outcome = applyVerdict(listing({ areaSqft: null }), verdict({ areaSqft: 980 }), STRICT);
+    expect(outcome.listing.areaSqft).toBe(980);
+    expect(outcome.applied).toBe(true);
+    expect(outcome.note).toContain('980 sq ft');
+  });
+
+  it('never overwrites an area the source stated', () => {
+    const outcome = applyVerdict(listing({ areaSqft: 1100 }), verdict({ areaSqft: 700 }), STRICT);
+    expect(outcome.listing.areaSqft).toBe(1100);
+    expect(outcome.applied).toBe(false);
+  });
+
+  it('believes "parking included" only at high confidence', () => {
+    const outcome = applyVerdict(
+      listing({ parkingIncluded: null }),
+      verdict({ parking: 'included', confidence: 'high' }),
+      STRICT,
+    );
+    expect(outcome.listing.parkingIncluded).toBe(true);
+    expect(outcome.applied).toBe(true);
+  });
+
+  it('degrades a medium-confidence "included" to available on unstated terms', () => {
+    const outcome = applyVerdict(
+      listing({ parkingIncluded: null }),
+      verdict({ parking: 'included', confidence: 'medium' }),
+      STRICT,
+    );
+    expect(outcome.listing.parkingIncluded).toBeNull();
+    expect(outcome.listing.parkingAvailable).toBe(true);
+  });
+
+  it('records paid or available parking as existence, never as a number in the total', () => {
+    const outcome = applyVerdict(
+      listing({ parkingIncluded: null }),
+      verdict({ parking: 'paid_extra' }),
+      STRICT,
+    );
+    expect(outcome.listing.parkingAvailable).toBe(true);
+    expect(outcome.listing.parkingCost).toBeNull();
+    expect(outcome.listing.totalMonthlyCost).toBe(2400);
+  });
+
+  it('turns "no parking" into the explicit negative the hard filter rejects on', () => {
+    const outcome = applyVerdict(listing({ parkingIncluded: null }), verdict({ parking: 'none' }), STRICT);
+    expect(outcome.listing.parkingIncluded).toBe(false);
+    expect(outcome.applied).toBe(true);
+  });
+
+  it('never argues with a structured parking claim', () => {
+    const outcome = applyVerdict(
+      listing({ parkingIncluded: true }),
+      verdict({ parking: 'none' }),
+      STRICT,
+    );
+    expect(outcome.listing.parkingIncluded).toBe(true);
+    expect(outcome.applied).toBe(false);
+  });
+
+  it('never acts on area or parking at low confidence', () => {
+    const outcome = applyVerdict(
+      listing({ parkingIncluded: null, areaSqft: null }),
+      verdict({ parking: 'included', areaSqft: 900, confidence: 'low' }),
+      STRICT,
+    );
+    expect(outcome.listing.parkingIncluded).toBeNull();
+    expect(outcome.listing.areaSqft).toBeNull();
+    expect(outcome.applied).toBe(false);
   });
 });
 

@@ -86,12 +86,17 @@ export function buildMessage(payload: NotificationPayload): string {
       ? 'parking included'
       : listing.parkingCost !== null
         ? `+ parking ${money(listing.parkingCost)}`
-        : listing.parkingIncluded === false
-          ? 'no parking'
-          : 'parking not stated';
+        : listing.parkingAvailable === true
+          ? // Passes the parking requirement, but unlike a priced spot its cost is NOT in
+            // the monthly total — the wording is what keeps that honest.
+            'parking available (cost unstated)'
+          : listing.parkingIncluded === false
+            ? 'no parking'
+            : 'parking not stated';
   lines.push(`<b>CAD ${money(listing.totalMonthlyCost)}</b>/month · base ${money(listing.rentBase)} · ${parkingNote}`);
 
   const features = [layoutLabel(listing.beds, listing.dens)];
+  if (listing.areaSqft !== null) features.push(`${listing.areaSqft} sq ft`);
   if (listing.baths !== null) features.push(`${listing.baths} bath`);
   if (listing.hasLocker === true) features.push('locker');
   if (listing.inSuiteLaundry === true) features.push('in-suite laundry');

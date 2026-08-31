@@ -143,6 +143,8 @@ export function parseSearchPage(nextData: unknown): TriagePage {
     // Bathrooms arrive multiplied by ten: 10 = 1.0, 15 = 1.5.
     const bathsRaw = numeric(attrs.get('numberbathrooms'));
     const parkingSpots = numeric(attrs.get('numberparkingspots'));
+    // Same ambiguity as the tristate attributes: `0` means "left blank", not "zero square feet".
+    const areaRaw = numeric(attrs.get('areainfeet'));
 
     const utilitiesIncluded = Object.entries(UTILITY_ATTRIBUTES)
       .filter(([attribute]) => attrs.get(attribute) === '1')
@@ -160,11 +162,13 @@ export function parseSearchPage(nextData: unknown): TriagePage {
       rentBase,
       parkingIncluded: parkingSpots !== null && parkingSpots >= 1 ? true : null,
       parkingCost: null,
+      parkingAvailable: null,
       utilitiesIncluded,
       totalMonthlyCost: rentBase,
       beds: layout.beds,
       dens: layout.dens,
       baths: bathsRaw === null ? null : bathsRaw / 10,
+      areaSqft: areaRaw !== null && areaRaw > 0 ? Math.round(areaRaw) : null,
       hasLocker: tristateFromAttribute(attrs.get('storagelocker')),
       inSuiteLaundry: tristateFromAttribute(attrs.get('laundryinunit')),
       address: item.location?.address ?? null,

@@ -154,6 +154,9 @@ export function parseBuildingPage(html: string, building: BuildingEntry): Triage
     // "Call for pricing" floorplans cannot be scored against a rent target.
     if (!sourceId || rentBase === null || rentBase <= 0) continue;
 
+    // Densely populated per floorplan — the one source that states area structurally.
+    const squareFeet = num(unit.square_feet);
+
     const description = [unit.description, unit.short_description]
       .filter((d): d is string => typeof d === 'string' && d.length > 0)
       .join('\n\n');
@@ -171,6 +174,7 @@ export function parseBuildingPage(html: string, building: BuildingEntry): Triage
       // parking, and it speaks for every unit in the building.
       parkingIncluded: hasAmenity(amenities, PARKING_TAGS) ? true : null,
       parkingCost: null,
+      parkingAvailable: null,
       utilitiesIncluded: [],
       totalMonthlyCost: rentBase,
       beds: num(unit.bedrooms),
@@ -180,6 +184,7 @@ export function parseBuildingPage(html: string, building: BuildingEntry): Triage
       // opposite of the 1BR+den-as-2BR problem that made the verifier necessary.
       dens: 0,
       baths: bathrooms(unit),
+      areaSqft: squareFeet !== null && squareFeet > 0 ? Math.round(squareFeet) : null,
       hasLocker: hasAmenity(amenities, LOCKER_TAGS) ? true : null,
       inSuiteLaundry: hasAmenity(amenities, IN_SUITE_LAUNDRY_TAGS) ? true : null,
       address: building.address,
@@ -199,7 +204,9 @@ export function parseBuildingPage(html: string, building: BuildingEntry): Triage
   return listings;
 }
 
-const PARKING_TAGS = ['garage parking', 'underground parking', 'parking', 'covered parking'];
+// 'assigned parking' was seen on real buildings and missed by the allowlist — every unit in
+// them sat in "ad does not mention parking" review with no prose to rescue them.
+const PARKING_TAGS = ['garage parking', 'underground parking', 'parking', 'covered parking', 'assigned parking'];
 const LOCKER_TAGS = ['storage', 'storage locker', 'bicycle room'];
 const IN_SUITE_LAUNDRY_TAGS = ['in-unit laundry', 'washer in-suite', 'in suite laundry'];
 

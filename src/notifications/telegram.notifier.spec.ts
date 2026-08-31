@@ -57,8 +57,9 @@ function payload(chatIds: string[]): NotificationPayload {
     includeMap: false,
     listing: {
       source: 'kijiji', sourceId: '1', url: 'https://example.com/1', title: 'A unit', rawText: null,
-      rentBase: 2400, parkingIncluded: true, parkingCost: null, utilitiesIncluded: [], totalMonthlyCost: 2400,
-      beds: 3, dens: 0, baths: 1, hasLocker: null, inSuiteLaundry: null,
+      rentBase: 2400, parkingIncluded: true, parkingCost: null, parkingAvailable: null,
+      utilitiesIncluded: [], totalMonthlyCost: 2400,
+      beds: 3, dens: 0, baths: 1, areaSqft: null, hasLocker: null, inSuiteLaundry: null,
       address: '1 Main St', city: 'Toronto', lat: 43.7, lng: -79.4,
       availableFrom: null, postedAt: null, buildingBuiltBefore2018: null,
     },

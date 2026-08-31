@@ -7,6 +7,7 @@ import {
   extractInSuiteLaundry,
   extractLocker,
   extractParking,
+  extractSqft,
   extractUtilities,
 } from './rules';
 
@@ -126,27 +127,86 @@ describe('extractBeds', () => {
 
 describe('extractParking', () => {
   it('reads "Parking + Locker Included" as included at no extra cost', () => {
-    expect(extractParking(n(REAL.luxuryCondo))).toEqual({ included: true, cost: null });
+    expect(extractParking(n(REAL.luxuryCondo))).toEqual({ included: true, cost: null, available: false });
   });
 
   it('reads "Includes 1 parking spot" as included', () => {
-    expect(extractParking(n(REAL.esplanadeLoft))).toEqual({ included: true, cost: null });
+    expect(extractParking(n(REAL.esplanadeLoft))).toEqual({ included: true, cost: null, available: false });
   });
 
   it('separates paid parking from included parking, and captures the price', () => {
     // This is the distinction that decides whether a 3,150 listing is really a 3,300 one.
-    expect(extractParking(n('Parking available for $150/month'))).toEqual({ included: false, cost: 150 });
-    expect(extractParking(n('Parking: $200 extra'))).toEqual({ included: false, cost: 200 });
+    expect(extractParking(n('Parking available for $150/month'))).toEqual({
+      included: false,
+      cost: 150,
+      available: false,
+    });
+    expect(extractParking(n('Parking: $200 extra'))).toEqual({ included: false, cost: 200, available: false });
   });
 
   it('honours an explicit denial', () => {
-    expect(extractParking(n('No parking included with this unit'))).toEqual({ included: false, cost: null });
-    expect(extractParking(n('Street parking only'))).toEqual({ included: false, cost: null });
+    expect(extractParking(n('No parking included with this unit'))).toEqual({
+      included: false,
+      cost: null,
+      available: false,
+    });
+    expect(extractParking(n('Street parking only'))).toEqual({ included: false, cost: null, available: false });
+  });
+
+  it('reads a priceless "parking available" as existence on unstated terms', () => {
+    expect(extractParking(n('Parking available. Contact for details.'))).toEqual({
+      included: null,
+      cost: null,
+      available: true,
+    });
+    expect(extractParking(n('Parking spots available in the building'))).toEqual({
+      included: null,
+      cost: null,
+      available: true,
+    });
+  });
+
+  it('never reads "parking not available" as availability', () => {
+    expect(extractParking(n('Parking not available'))).toEqual({ included: false, cost: null, available: false });
   });
 
   it('leaves an ambiguous mention undetermined rather than guessing', () => {
     // "One parking is needed" is a tenant asking, not a landlord offering.
     expect(extractParking(n('Looking for a room. One parking is needed')).included).toBeNull();
+  });
+});
+
+describe('extractSqft', () => {
+  it('reads the real "1,200 Sq. Ft." phrasing — the comma arrives as a space', () => {
+    expect(extractSqft(n(REAL.esplanadeLoft))).toBe(1200);
+  });
+
+  it('reads the real "Approx 600 sq foot" phrasing', () => {
+    expect(extractSqft(n(REAL.beaches))).toBe(600);
+  });
+
+  it('reads the compact forms', () => {
+    expect(extractSqft(n('Spacious 950 sqft corner unit'))).toBe(950);
+    expect(extractSqft(n('850 sq ft plus balcony'))).toBe(850);
+    expect(extractSqft(n('roughly 1100 square feet'))).toBe(1100);
+  });
+
+  it('refuses an "up to" ceiling — that is the building, not this unit', () => {
+    expect(extractSqft(n('Suites up to 1210 sq ft'))).toBeNull();
+  });
+
+  it('does not mistake ceiling height or lot-less mentions for an area', () => {
+    // esplanadeLoft's "20 Ft. ceilings" only fails because the unit requires "sq".
+    expect(extractSqft(n('1 bedroom loft with 20 Ft. ceilings downtown'))).toBeNull();
+  });
+
+  it('rejects the implausible instead of storing it', () => {
+    expect(extractSqft(n('200 sq ft den'))).toBeNull();
+    expect(extractSqft(n('12,000 sq ft lot'))).toBeNull();
+  });
+
+  it('returns null when the ad never states an area', () => {
+    expect(extractSqft(n(REAL.donMills))).toBeNull();
   });
 });
 

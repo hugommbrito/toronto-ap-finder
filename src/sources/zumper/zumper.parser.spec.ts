@@ -154,6 +154,20 @@ describe('parseBuildingPage', () => {
     for (const u of units) expect(u.parkingIncluded).toBe(true);
   });
 
+  it('accepts "Assigned Parking" — a real tag the allowlist used to miss', () => {
+    const assigned = parseBuildingPage(BUILDING, { ...building, amenityTags: ['Assigned Parking'] });
+    for (const u of assigned) expect(u.parkingIncluded).toBe(true);
+  });
+
+  it('reads square_feet per floorplan — the densest area source in the project', () => {
+    const stated = units.filter((u) => u.areaSqft !== null);
+    expect(stated.length).toBeGreaterThan(0);
+    for (const u of stated) {
+      expect(u.areaSqft!).toBeGreaterThan(0);
+      expect(Number.isInteger(u.areaSqft!)).toBe(true);
+    }
+  });
+
   it('never claims a den from structured data — Zumper has no such field', () => {
     // A den can only come from the description, through the enrichment stage.
     for (const u of units) expect(u.dens).toBe(0);

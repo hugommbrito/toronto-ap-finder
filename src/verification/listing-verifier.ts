@@ -16,6 +16,8 @@ export const verdictSchema = z.object({
   dens: z.number().int().min(0).max(5),
   isEntireUnit: z.boolean(),
   isSplitDwelling: z.boolean(),
+  areaSqft: z.number().int().min(100).max(10000).nullable(),
+  parking: z.enum(['included', 'paid_extra', 'available', 'none', 'not_stated']),
   confidence: z.enum(['high', 'medium', 'low']),
   evidence: z.string(),
   notes: z.string(),
@@ -40,6 +42,17 @@ const VERDICT_JSON_SCHEMA = {
       description:
         'True when the unit is one part of a house divided into separately-rented homes, so another household occupies the rest — a main-floor unit with the basement let separately, a basement apartment, an upper unit. False for a whole house let entirely, and for an apartment or condo in a purpose-built building.',
     },
+    areaSqft: {
+      type: ['integer', 'null'],
+      description:
+        'The unit floor area in square feet, exactly as the advertisement states it. null when the ad never states an area — never estimate one from the layout.',
+    },
+    parking: {
+      type: 'string',
+      enum: ['included', 'paid_extra', 'available', 'none', 'not_stated'],
+      description:
+        "What the advertisement says about parking for this unit: 'included' when a spot comes with the rent, 'paid_extra' when offered at a price, 'available' when it exists but the terms are unstated, 'none' when the ad says there is no parking (street parking only counts as none), 'not_stated' when parking is never mentioned.",
+    },
     confidence: {
       type: 'string',
       enum: ['high', 'medium', 'low'],
@@ -55,7 +68,17 @@ const VERDICT_JSON_SCHEMA = {
       description: 'Anything else that contradicts the structured fields, in one sentence. Empty string if nothing.',
     },
   },
-  required: ['bedrooms', 'dens', 'isEntireUnit', 'isSplitDwelling', 'confidence', 'evidence', 'notes'],
+  required: [
+    'bedrooms',
+    'dens',
+    'isEntireUnit',
+    'isSplitDwelling',
+    'areaSqft',
+    'parking',
+    'confidence',
+    'evidence',
+    'notes',
+  ],
   additionalProperties: false,
 } as const;
 
@@ -79,7 +102,7 @@ The listing site's structured fields are unreliable in two specific ways. They d
 
 Toronto houses are routinely split into separately-rented homes — a main-floor unit with the basement let to someone else, or the basement on its own. The title often says so ("MAIN - 184 Rosemount", "BASEMENT - 300 South Kingsway"), and the body gives it away with shared laundry, a separate entrance, or a floor named as the whole unit. A purpose-built apartment or condo is not a split dwelling, however many units the building holds.
 
-Report the unit as the advertisement's own prose describes it. Where the prose says nothing about the layout, say so through low confidence and an empty evidence quote rather than repeating the structured figures back.`;
+Report the unit as the advertisement's own prose describes it. Where the prose says nothing about the layout, say so through low confidence and an empty evidence quote rather than repeating the structured figures back. Report the floor area and parking terms only as the ad states them — never estimate an area, and when parking is never mentioned say not_stated rather than guessing.`;
 
 /**
  * Reads the advertisement and reports the layout the prose supports.

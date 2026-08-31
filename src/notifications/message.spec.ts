@@ -20,11 +20,13 @@ function payload(overrides: Partial<NotificationPayload> = {}): NotificationPayl
       rentBase: 2750,
       parkingIncluded: false,
       parkingCost: 150,
+      parkingAvailable: null,
       utilitiesIncluded: ['heat', 'water'],
       totalMonthlyCost: 2900,
       beds: 3,
       dens: 0,
       baths: 2,
+      areaSqft: null,
       hasLocker: true,
       inSuiteLaundry: true,
       address: '2770 Jane Street, Toronto, ON',
@@ -77,6 +79,22 @@ describe('buildMessage', () => {
     const msg = buildMessage(payload());
     expect(msg).toContain('base 2,750');
     expect(msg).toContain('+ parking 150');
+  });
+
+  it('words unstated-terms parking honestly — its cost is not in the total', () => {
+    const base = payload();
+    const msg = buildMessage({
+      ...base,
+      listing: { ...base.listing, parkingIncluded: null, parkingCost: null, parkingAvailable: true },
+    });
+    expect(msg).toContain('parking available (cost unstated)');
+  });
+
+  it('shows the advertised area, and nothing when the ad never said', () => {
+    const base = payload();
+    const msg = buildMessage({ ...base, listing: { ...base.listing, areaSqft: 1050 } });
+    expect(msg).toContain('1050 sq ft');
+    expect(buildMessage(payload())).not.toContain('sq ft');
   });
 
   it('always carries the score breakdown — the calibration instrument', () => {

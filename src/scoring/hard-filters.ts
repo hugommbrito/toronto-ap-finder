@@ -11,6 +11,7 @@ export interface FilterableListing {
   totalMonthlyCost: number;
   parkingIncluded: boolean | null;
   parkingCost: number | null;
+  parkingAvailable: boolean | null;
   city: string | null;
   lat: number | null;
   lng: number | null;
@@ -84,9 +85,10 @@ export function applyHardFilters(
   // --- parking ---
   if (hard.requireParking) {
     const included = listing.parkingIncluded === true;
-    // "Parking available for $X" satisfies the requirement, but only because that cost has
-    // already been folded into totalMonthlyCost upstream.
-    const purchasable = listing.parkingCost !== null;
+    // "Parking available for $X" satisfies the requirement with its cost already folded into
+    // totalMonthlyCost upstream. `parkingAvailable` satisfies it too — parking exists, terms
+    // unstated — but note that its cost is NOT in the total; the notification says so.
+    const purchasable = listing.parkingCost !== null || listing.parkingAvailable === true;
     if (!included && !purchasable) {
       if (listing.parkingIncluded === false) {
         rejections.push({ reason: 'no_parking', detail: { parkingIncluded: false } });

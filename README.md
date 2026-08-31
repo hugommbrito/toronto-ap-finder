@@ -91,10 +91,18 @@ evaluated in order, **first match wins**, so the strictest tier comes first.
 
 Admitting plain 2BRs takes the Toronto candidate pool from ~1,700 listings to ~4,600 — by
 far the largest lever available, much bigger than moving the price ceiling. The `bedroomFit`
-weight of 35 is what stops that widening from flooding the feed: a plain 2BR gives up 21.3
-final points, slightly more than the 21.0 points that the entire rent range is worth. So a
+weight of 35 is what stops that widening from flooding the feed: a plain 2BR gives up ~23.4
+final points, slightly less than the ~23.6 points that the entire rent range is worth. So a
 2BR at the target merely *ties* a 3BR at the ceiling, and an ordinary 2BR lands under
 `minScore` and is never notified. Only an outstanding one gets through, which is the point.
+
+Floor area cuts across the ladder. The `areaFit` component (weight 15) is anchored on the
+950 sq ft she lives in now — 0 at 800, 1 at 1,100 — and is deliberately strong enough to
+cross layouts: an 1,100 sq ft 2BR+den outranks an 850 sq ft 3BR, which is how she framed the
+trade-off herself. An ad that never states its area skips the component entirely rather than
+being punished for silence, like every other tri-state fact. `parkingConfirmed` (6) ranks
+what the hard parking requirement lets through — included beats priced-or-unstated-terms —
+and `bathrooms` (5) pays a second bathroom as a tie-break.
 
 A tier's `rule` can be any shape the bedroom expression language supports, including nested
 `anyOf` — the same recursive evaluator serves the hard floor and the ladder.
@@ -232,11 +240,11 @@ disagrees is tuning or a decision, and is left exactly as it is unless named wit
 `pnpm verify` prints what the current weights are actually worth, in final points:
 
 ```
-worth in final points:  500 of rent = 21.0  |  3BR over plain 2BR = 21.3  |  location = 8.4
+worth in final points:  500 of rent = 22.1  |  3BR over plain 2BR = 22.4  |  1,100 sq ft over 800 = 10.1  |  location = 2.9
 ```
 
 Those are the numbers to argue with. Everything else in the output is a ladder — price,
-layout, neighbourhood — held constant on every axis but one.
+layout, area, neighbourhood — held constant on every axis but one.
 
 ## Layout
 

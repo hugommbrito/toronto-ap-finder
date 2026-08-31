@@ -186,6 +186,56 @@ export const inSuiteLaundry: ScoreComponent = (ctx) =>
   ctx.listing.inSuiteLaundry === null ? null : ctx.listing.inSuiteLaundry ? 1 : 0;
 
 /**
+ * The floor area curve is anchored on the apartment she lives in now: 950 sq ft.
+ *
+ * Her own words define both ends. A 3BR smaller than today's place is not worth the move —
+ * below 800 even three nominal bedrooms don't hold two working adults and a child. A 2BR+den
+ * larger than today's place already is worth it — by 1,100 the den is a real office and the
+ * living space breathes. Linear between the two, so 950 itself sits at exactly 0.5: the move
+ * has to buy space, not merely match it.
+ *
+ * At weight 15 this is deliberately strong enough to cross layouts: a 1,100 sq ft 2BR+den
+ * outranks an 850 sq ft 3BR (24.5 + 15 beats 35 + 2.5 in weight units), which is precisely
+ * the trade she described. Null when the ad never states the area — that listing competes on
+ * what is known about it, unpunished, like every other tri-state.
+ */
+const AREA_ZERO_SQFT = 800;
+const AREA_FULL_SQFT = 1100;
+
+export const areaFit: ScoreComponent = (ctx) => {
+  const sqft = ctx.listing.areaSqft;
+  if (sqft === null) return null;
+  return clamp01((sqft - AREA_ZERO_SQFT) / (AREA_FULL_SQFT - AREA_ZERO_SQFT));
+};
+
+/**
+ * What the ad says about somewhere to put the car — the distinctions the hard filter's pass
+ * cannot rank. `requireParking` already guarantees anything scored either includes parking,
+ * prices it, or offers it on unstated terms; this pays the difference between those three.
+ * Included in the rent is full credit. A spot at a price and a spot on unstated terms both
+ * earn half: a real spot either way, but not a free one — and the priced one's cost is
+ * already counted against the listing in totalMonthlyCost. Explicit "no parking" scores 0,
+ * which only matters for profiles that don't require parking; silence stays null and drops
+ * out of the denominator like every other tri-state.
+ */
+export const parkingConfirmed: ScoreComponent = (ctx) => {
+  const { parkingIncluded, parkingCost, parkingAvailable } = ctx.listing;
+  if (parkingIncluded === true) return 1;
+  // Before the false-check on purpose: "not included, but $150/month" is a purchasable spot.
+  if (parkingCost !== null) return 0.5;
+  if (parkingAvailable === true) return 0.5;
+  if (parkingIncluded === false) return 0;
+  return null;
+};
+
+/**
+ * Two working adults and a child. One bathroom is the baseline (0), a powder room is half a
+ * step, a second full bath is full credit — beyond two adds nothing a family of three uses.
+ */
+export const bathrooms: ScoreComponent = (ctx) =>
+  ctx.listing.baths === null ? null : clamp01(ctx.listing.baths - 1);
+
+/**
  * The score a typical inspected building carries — the point where this component is neutral.
  *
  * Four numbers are in play and they are not interchangeable, which is why this one is 91:
@@ -302,11 +352,14 @@ export const bedroomFit: ScoreComponent = (ctx) => {
  */
 export const SCORE_COMPONENTS: Record<string, ScoreComponent> = {
   bedroomFit,
+  areaFit,
+  bathrooms,
   daycareProximity,
   daycareRedundancy,
   daycareAffordability,
   transitOperational,
   transitFuture,
+  parkingConfirmed,
   locker,
   inSuiteLaundry,
   rentControlled,

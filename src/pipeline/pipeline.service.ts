@@ -276,7 +276,13 @@ export class PipelineService {
     report.hydrationDeferred = needFetch.length - toFetch.length;
 
     for (const candidate of fromCache) {
-      const enriched = listingFromRow(stored.get(candidate.listing.sourceId)!);
+      // Re-run the text extraction over the stored body rather than trusting the stored
+      // booleans: the row was written by whatever rules existed when it was hydrated, so
+      // this is where a new rule back-fills the corpus. The upsert coalesces, so a re-read
+      // can add facts but never erase one.
+      const cached = listingFromRow(stored.get(candidate.listing.sourceId)!);
+      const enriched = enrichFromText(cached, cached.rawText ?? '');
+      await this.repo.upsertListing(enriched, fingerprintOf(enriched));
       await this.evaluate(enriched, candidate.listingId, candidate.profiles, geo, report, options, source.name);
     }
 
@@ -627,7 +633,13 @@ export class PipelineService {
     report.reusedFromCache = rows.length;
 
     for (const row of rows) {
-      await this.evaluate(listingFromRow(row), row.id, profiles, geo, report, options, row.source);
+      // Same re-extraction as the cycle's cache path: a stored row reflects the rules that
+      // existed when it was hydrated, so a calibration pass is also where a new extraction
+      // rule back-fills the corpus. Coalesce in the upsert makes this add-only.
+      const cached = listingFromRow(row);
+      const enriched = enrichFromText(cached, cached.rawText ?? '');
+      await this.repo.upsertListing(enriched, fingerprintOf(enriched));
+      await this.evaluate(enriched, row.id, profiles, geo, report, options, row.source);
     }
 
     // Recorded with a null source: this run touches no source at all, and charging it to one
@@ -689,6 +701,8 @@ export class PipelineService {
         dens: verdict.dens,
         isEntireUnit: verdict.isEntireUnit,
         isSplitDwelling: verdict.isSplitDwelling,
+        areaSqft: verdict.areaSqft,
+        parking: verdict.parking,
         confidence: verdict.confidence,
         evidence: verdict.evidence,
         notes: verdict.notes,
@@ -1090,6 +1104,9 @@ function storedVerdict(row: ListingVerificationRow | null): Verdict | null {
     dens: row.dens,
     isEntireUnit: row.isEntireUnit,
     isSplitDwelling: row.isSplitDwelling,
+    // Rows written before the columns existed replay as "said nothing", not as failures.
+    areaSqft: row.areaSqft ?? null,
+    parking: row.parking ?? 'not_stated',
     confidence: row.confidence,
     evidence: row.evidence ?? '',
     notes: row.notes ?? '',

@@ -36,6 +36,9 @@ export interface ScorableListing {
   /** Whole bedrooms. A "2 + den" unit is beds: 2, dens: 1. */
   beds: number | null;
   dens: number;
+  baths: number | null;
+  /** Advertised floor area in square feet; null when the ad never said. */
+  areaSqft: number | null;
   lat: number | null;
   lng: number | null;
   /**
@@ -44,6 +47,10 @@ export interface ScorableListing {
    * is nothing" or "nobody publishes this here".
    */
   city: string | null;
+  parkingIncluded: boolean | null;
+  parkingCost: number | null;
+  /** Parking exists at the building on terms the ad does not state. */
+  parkingAvailable: boolean | null;
   hasLocker: boolean | null;
   inSuiteLaundry: boolean | null;
   buildingBuiltBefore2018: boolean | null;

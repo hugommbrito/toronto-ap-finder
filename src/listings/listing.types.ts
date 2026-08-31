@@ -21,6 +21,12 @@ export interface Listing {
   rentBase: number;
   parkingIncluded: boolean | null;
   parkingCost: number | null;
+  /**
+   * Parking exists at the building on terms the ad does not state — CAPREIT's `Parking*`,
+   * prose like "parking available". The weaker claim only: never set once included or a
+   * price is known.
+   */
+  parkingAvailable: boolean | null;
   utilitiesIncluded: string[];
   /** Derived: rentBase + parkingCost (when not included) + estimated uncovered utilities. */
   totalMonthlyCost: number;
@@ -29,6 +35,8 @@ export interface Listing {
   beds: number | null;
   dens: number;
   baths: number | null;
+  /** Advertised floor area in square feet; null when the ad never said, never 0. */
+  areaSqft: number | null;
 
   hasLocker: boolean | null;
   inSuiteLaundry: boolean | null;
@@ -65,11 +73,13 @@ export function listingFromRow(row: {
   rentBase: string;
   parkingIncluded: boolean | null;
   parkingCost: string | null;
+  parkingAvailable: boolean | null;
   utilitiesIncluded: string[];
   totalMonthlyCost: string;
   beds: number | null;
   dens: number;
   baths: string | null;
+  areaSqft: number | null;
   hasLocker: boolean | null;
   inSuiteLaundry: boolean | null;
   address: string | null;
@@ -89,11 +99,13 @@ export function listingFromRow(row: {
     rentBase: Number(row.rentBase),
     parkingIncluded: row.parkingIncluded,
     parkingCost: row.parkingCost === null ? null : Number(row.parkingCost),
+    parkingAvailable: row.parkingAvailable,
     utilitiesIncluded: row.utilitiesIncluded,
     totalMonthlyCost: Number(row.totalMonthlyCost),
     beds: row.beds,
     dens: row.dens,
     baths: row.baths === null ? null : Number(row.baths),
+    areaSqft: row.areaSqft,
     hasLocker: row.hasLocker,
     inSuiteLaundry: row.inSuiteLaundry,
     address: row.address,
