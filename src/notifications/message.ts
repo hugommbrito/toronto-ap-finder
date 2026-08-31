@@ -127,8 +127,20 @@ export function buildMessage(payload: NotificationPayload): string {
       );
     }
   }
-  const { total, cwelcc, radiusM } = payload.daycaresNearby;
-  lines.push(`👶 ${total} toddler daycare${total === 1 ? '' : 's'} within ${radiusM} m — ${cwelcc} with CWELCC`);
+  const { total, cwelcc, radiusM, coverage } = payload.daycaresNearby;
+  if (coverage === 'full') {
+    lines.push(`👶 ${total} toddler daycare${total === 1 ? '' : 's'} within ${radiusM} m — ${cwelcc} with CWELCC`);
+  } else if (coverage === 'presenceOnly') {
+    // Says "licensed", not "toddler", and names the gap rather than implying a zero. This is the
+    // one line that tells the reader the childcare check could not actually be completed here.
+    lines.push(
+      `👶 ${total} licensed daycare${total === 1 ? '' : 's'} within ${radiusM} m — ` +
+        'toddler places and CWELCC not published for this region, confirm before viewing',
+    );
+  } else {
+    // Never "0 daycares nearby". Nothing was searched, so a count would be a claim.
+    lines.push(`👶 no childcare data covers this area — nothing was checked within ${radiusM} m`);
+  }
   if (payload.nearestDaycare) {
     const { name, distanceM, cwelcc: isCwelcc } = payload.nearestDaycare;
     const tag = isCwelcc ? ' · CWELCC' : '';

@@ -1,0 +1,15 @@
+-- `source_buildings` remembers the municipality.
+--
+-- A building is enumerated once and re-opened from its stored row, never from the entry that was
+-- parsed, so a column the table did not have was a fact the pipeline could not recover:
+-- `buildingFromRow` had to supply `city: null`, and the Zumper adapter copies the building's city
+-- onto every unit it yields. Every Zumper listing therefore had no city.
+--
+-- That was invisible until two things started reading it — the dedup fingerprint, which fell back
+-- to a placeholder and so stopped grouping Zumper units with the Kijiji ads for the same address,
+-- and the childcare coverage check, which read "no city" as "no dataset covers this" and stopped
+-- applying the filter at all.
+--
+-- Nullable and unbackfilled on purpose: the value is re-read from the source on the next
+-- enumeration, and guessing it from the search target would write the region in place of the city.
+ALTER TABLE "source_buildings" ADD COLUMN IF NOT EXISTS "city" text;

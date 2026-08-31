@@ -19,7 +19,22 @@ export class CapreitParseError extends Error {
 const BASE = 'https://www.capreit.ca';
 
 /** The five names that are one municipality, as the profile spells them. */
-const GTA_CITY_SLUGS = ['toronto', 'north-york', 'etobicoke', 'scarborough', 'east-york'];
+/**
+ * Slugs kept from the national sitemap.
+ *
+ * Cheap to widen — the sitemap is one request regardless — so this is a parse-time allowlist
+ * rather than a set of search URLs, and CAPREIT never needs to rotate.
+ *
+ * Scarborough and East York stay even though the profile refuses them: the slug is not
+ * authoritative (a property listed under `toronto-on` can redirect to `north-york-on`, see
+ * `toBuildingEntry`), so dropping them here would risk discarding a building that is actually
+ * somewhere she would live. The area veto is done properly downstream, by position.
+ *
+ * `mississauga` was added with the 905 expansion — verified 8 properties in the live sitemap.
+ * There is no `cambridge` entry because CAPREIT has none there; the nearest are 2 in Waterloo
+ * and 1 in Kitchener, neither of which is on the allowlist.
+ */
+const GTA_CITY_SLUGS = ['toronto', 'north-york', 'etobicoke', 'scarborough', 'east-york', 'mississauga'];
 
 /**
  * Building-wide amenities that speak for every unit, and only when they are unqualified.

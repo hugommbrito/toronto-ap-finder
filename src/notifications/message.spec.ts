@@ -45,7 +45,7 @@ function payload(overrides: Partial<NotificationPayload> = {}): NotificationPayl
       { line: 'Line 5 Eglinton', station: 'Keelesdale', distanceM: 412, lat: 43.6889, lng: -79.4795 },
     ],
     transitRadiusM: 1200,
-    daycaresNearby: { total: 3, cwelcc: 2, radiusM: 800 },
+    daycaresNearby: { total: 3, cwelcc: 2, radiusM: 800, coverage: 'full' as const },
     nearestDaycare: {
       name: 'Keelesdale Park Child Care', distanceM: 310, cwelcc: true, lat: 43.688, lng: -79.478,
     },
@@ -234,5 +234,49 @@ describe('inQuietHours', () => {
   it('is never quiet for a profile that set no window', () => {
     const always: TenantProfile = { ...profile, notify: { ...profile.notify, quietHours: undefined } };
     expect(inQuietHours(always, new Date('2026-08-18T03:00:00Z'))).toBe(false);
+  });
+});
+
+/**
+ * What the reader is told when the childcare check could not actually be completed.
+ *
+ * This is the last place the coverage work can be undone. A Mississauga ad passes the childcare
+ * filter on presence alone, so a message repeating Toronto's phrasing — "3 toddler daycares,
+ * 2 with CWELCC" — would state two things nobody measured.
+ */
+describe('childcare line where the region publishes no age breakdown', () => {
+  const unverified = () =>
+    buildMessage(
+      payload({ daycaresNearby: { total: 3, cwelcc: 0, radiusM: 800, coverage: 'presenceOnly' as const } }),
+    );
+
+  it('says licensed rather than toddler', () => {
+    expect(unverified()).toContain('3 licensed daycares within 800 m');
+    expect(unverified()).not.toContain('toddler daycares');
+  });
+
+  it('tells the reader to confirm, and never reports CWELCC as zero', () => {
+    const text = unverified();
+    expect(text).toMatch(/not published for this region/);
+    expect(text).toMatch(/confirm before viewing/);
+    expect(text).not.toContain('0 with CWELCC');
+  });
+
+  /**
+   * The case that must never print a count. Nothing was searched, so "0 daycares within 800 m"
+   * would assert a result nobody measured — the exact failure the coverage work exists to stop.
+   */
+  it('states that nothing was checked where no dataset reaches', () => {
+    const text = buildMessage(
+      payload({ daycaresNearby: { total: 0, cwelcc: 0, radiusM: 800, coverage: 'none' as const } }),
+    );
+    expect(text).toContain('no childcare data covers this area');
+    expect(text).not.toMatch(/0 (?:toddler|licensed) daycare/);
+  });
+
+  it('leaves the Toronto wording untouched', () => {
+    const text = buildMessage(payload());
+    expect(text).toContain('3 toddler daycares within 800 m — 2 with CWELCC');
+    expect(text).not.toMatch(/confirm before viewing/);
   });
 });

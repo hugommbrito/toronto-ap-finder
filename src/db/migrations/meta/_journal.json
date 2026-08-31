@@ -71,6 +71,20 @@
       "when": 1787025120000,
       "tag": "0009_rentsafe",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787025180000,
+      "tag": "0010_regional_coverage",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787025240000,
+      "tag": "0011_building_city",
+      "breakpoints": true
     }
   ]
 }

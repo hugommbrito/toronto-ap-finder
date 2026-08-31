@@ -7,6 +7,28 @@ export interface UnparsableListing {
   reason: string;
 }
 
+/**
+ * One place a source can be pointed at.
+ *
+ * Sources took no location at all, because there was only ever one: `hard.cities` filtered what
+ * had already arrived, and what arrived was always Toronto. Adding Mississauga and Cambridge to
+ * the allowlist would therefore have widened nothing — the allowlist is an accept filter, and
+ * this is the query.
+ *
+ * Passed as an argument rather than being baked into an instance per region, deliberately: the
+ * `RateLimiter` circuit lives on the source instance, so two instances hitting kijiji.ca would
+ * pace independently and double the real request rate against one host. `registry.health()` is
+ * also keyed on `name`, so per-region instances would silently collapse into one another there.
+ *
+ * `key` is stable and persisted (`cycle_runs.target`), because the rotation reads it back.
+ */
+export interface SearchTarget {
+  /** Stable, lowercase, no colons — it is stored and compared. e.g. 'peel'. */
+  key: string;
+  /** For logs and error messages. */
+  label: string;
+}
+
 export interface TriagePage {
   listings: TriageListing[];
   /**
@@ -45,7 +67,16 @@ export interface UnitListingSource extends SourceHealth {
   /** Floor between requests. Section 13 of the brief sets a 2 s minimum. */
   readonly minIntervalMs: number;
 
-  fetchTriagePage(page: number): Promise<TriagePage>;
+  /**
+   * Everywhere this source can be pointed. Never empty.
+   *
+   * The pipeline visits **one per cycle, in rotation**, rather than all of them: Kijiji's limit
+   * is a rolling budget and three regions at full depth would be ~75 requests in one burst,
+   * which is the shape that earned a 429 at a 2 s gap.
+   */
+  readonly searchTargets: readonly SearchTarget[];
+
+  fetchTriagePage(page: number, target: SearchTarget): Promise<TriagePage>;
 
   /** Full advertisement body plus anything only the detail page knows. */
   fetchDetail(listing: TriageListing): Promise<ListingDetail>;
@@ -106,7 +137,10 @@ export interface BuildingListingSource extends SourceHealth {
    */
   readonly refreshEveryMs: number;
 
-  fetchBuildingPage(page: number): Promise<BuildingPage>;
+  /** As for unit sources. A source with one entry simply never rotates. */
+  readonly searchTargets: readonly SearchTarget[];
+
+  fetchBuildingPage(page: number, target: SearchTarget): Promise<BuildingPage>;
 
   /** One request, every floorplan the building offers, descriptions included. */
   fetchUnits(building: BuildingEntry): Promise<TriageListing[]>;
@@ -117,4 +151,33 @@ export interface ListingDetail {
   descriptionHtml: string;
   /** Source-specific lifecycle marker, when exposed. */
   status: string | null;
+}
+
+/**
+ * The target a source should visit next: whichever it has gone longest without.
+ *
+ * Pure, and separated from the database read on purpose — the selection rule is the part worth
+ * testing, and it should not need Postgres to prove.
+ *
+ * A target absent from `lastVisited` has never been visited and sorts ahead of every visited
+ * one, so a newly added region backfills before the established ones refresh. Ties resolve to
+ * declaration order, which keeps the choice deterministic rather than dependent on Map order.
+ */
+export function pickLeastRecentlyVisited(
+  targets: readonly SearchTarget[],
+  lastVisited: ReadonlyMap<string, Date>,
+): SearchTarget {
+  let chosen = targets[0]!;
+  let oldest = Number.POSITIVE_INFINITY;
+
+  for (const target of targets) {
+    const at = lastVisited.get(target.key);
+    const age = at === undefined ? -1 : at.getTime();
+    if (age < oldest) {
+      oldest = age;
+      chosen = target;
+    }
+  }
+
+  return chosen;
 }

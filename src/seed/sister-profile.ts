@@ -16,16 +16,20 @@ import { tenantProfileSchema, type TenantProfile } from '@/profiles/profile.sche
  *   Toronto candidate pool from ~1,700 listings to ~4,600.
  * - daycare age group is toddler, which filters the City of Toronto dataset to centres
  *   with TGSPACE > 0. A centre with 60 preschool places and no toddler places is no use.
+ *   Outside Toronto no region publishes capacity per age group at all, which is why
+ *   geo/coverage.ts exists and why such a listing is held for review rather than passed or
+ *   rejected on a fact nobody has.
  * - availableFrom is null: the move is "as soon as possible", so no date cut-off.
- * - the city names are one municipality (amalgamated 1998); listing them spells out the
- *   intent of "anywhere in the 416", minus the parts of it named in excludeAreas.
- * - anchors is empty on purpose. Home office means there is no commute to optimise, which
- *   is exactly why transit weighs less than childcare here.
+ * - cities spans the 416 plus Mississauga and Cambridge. See the comment on the field: it is
+ *   an accept filter, and the per-source search targets are what actually widen the search.
+ * - anchors is empty on purpose. Home office means there is no commute to optimise — and
+ *   since she bought a car, transit is a tie-breaker rather than a criterion, which is why
+ *   transitOperational is 4 against childcare's 45.
  */
 export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
   const profile: TenantProfile = {
     id: 'sister',
-    label: 'Irmã — 3BR ou 2BR+den, Toronto',
+    label: 'Irmã — 3BR ou 2BR+den, 416 + Mississauga/Cambridge',
     active: true,
     hard: {
       totalRentMax: 3200,
@@ -60,11 +64,27 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
        * A 900 m limit was the single most destructive filter in the first live cycle: 41%
        * of all rejections, and 23 listings that failed on nothing else. The distances that
        * died clustered just past the line — 971 m, 1,058 m, 1,069 m — about a minute of
-       * walking. With a home office there is no commute to protect, which is the same
-       * reason transit weighs less than childcare here.
+       * walking. With a home office there is no commute to protect, and now a car on top of
+       * that, which is the same reason transit weighs 4 against childcare's 45.
+       *
+       * Leaving this null is what keeps the 905 evaluable at all: a hard walking limit would
+       * eliminate essentially every Mississauga and Cambridge address on a criterion she no
+       * longer needs.
        */
       maxTransitWalkM: null,
-      cities: ['Toronto', 'North York', 'Etobicoke'],
+      /**
+       * The 416 plus two 905 cities, which became viable once she had a car.
+       *
+       * The first three names are one municipality (amalgamated 1998); listing them spells
+       * out "anywhere in the 416", minus the parts named in excludeAreas. Mississauga and
+       * Cambridge are separate municipalities that canonicalise to themselves, so their own
+       * names identify them and no geometry is needed.
+       *
+       * This list is an accept filter, not a query — what actually gets fetched is the
+       * per-source search targets. Adding a name here without a matching target finds
+       * nothing.
+       */
+      cities: ['Toronto', 'North York', 'Etobicoke', 'Mississauga', 'Cambridge'],
       /**
        * Refused outright. Not a preference to be outranked by a good price — she will not
        * live in these, so a listing there is worth nothing at any score.
@@ -75,10 +95,12 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
        * agrees — that is what makes "anywhere in the 416" work. The cut is therefore decided
        * by position against the 1998 boundaries; see geo/areas.ts.
        *
-       * Brampton is different: it is its own city in Peel, so `cities` already excludes it
-       * and its own name identifies it. It is named here anyway, because the reason it is
-       * out is that she refuses it — not the incidental fact that today's allowlist happens
-       * to stop at Toronto.
+       * Brampton is different, and it is now load-bearing rather than belt-and-braces.
+       * Kijiji has no Mississauga-only region: the search target is
+       * `mississauga-peel-region`, which covers all of Peel and therefore returns Brampton
+       * listings by the hundred. Before the 905 was added this entry excluded something the
+       * allowlist already excluded; now it is the only thing standing between her and a feed
+       * of Brampton.
        */
       excludeAreas: ['Scarborough', 'East York', 'Brampton'],
     },
@@ -97,33 +119,61 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
         /**
          * Weighted to make a plain 2BR surface only when it is exceptional.
          *
-         * With the weights summing to 140, bedroomFit is worth at most 25.0 final points and
-         * rentBelowTarget at most 21.4. A plain 2BR therefore gives up 21.25 points of
-         * layout, slightly more than the entire price advantage it could possibly earn — so
-         * a 2BR at 2,700 merely ties a 3BR at 3,200, and loses in every less extreme case.
-         * The median 2BR drops ~21 points, which puts it under minScore 55 and stops it
-         * being notified at all.
+         * The weights sum to 142, but the number that decides anything is the **effective**
+         * denominator, because null components drop out of it (see scorer.ts). Two cases:
+         *
+         * | 142 | everything scored, i.e. the ad matched a RentSafeTO building |
+         * | 127 | the common case — no match, so buildingScore (15) is null    |
+         *
+         * At 127, bedroomFit is worth at most 27.6 final points and rentBelowTarget 23.6. A
+         * plain 2BR sits on the 0.15 tier, so it gives up 23.4 points of layout against a
+         * maximum price advantage of 23.6 — near-exact parity. A 2BR at 2,700 therefore only
+         * ties a 3BR at 3,200, and loses in every less extreme case.
+         *
+         * (An earlier version of this comment said "weights summing to 140" and quoted 25.0
+         * and 21.4. 140 was the effective denominator of the day, not the sum — the sum was
+         * 155 once buildingScore was added. Keep the two labelled separately.)
          */
         bedroomFit: 35,
         // Rent is the second largest lever: the target sits well below market, so the
         // ranking has to be able to tell 2,750 from 3,150.
         rentBelowTarget: 30,
-        daycareProximity: 15,
-        daycareRedundancy: 15,
+        /**
+         * The largest single criterion after layout and price, because it is the one thing a
+         * car did not solve: the child is dropped off and collected **on foot**. Raised from
+         * 15 when transit was cut, and paid for out of daycareRedundancy rather than by
+         * growing the daycare block, which stays at 45.
+         */
+        daycareProximity: 20,
+        // Wait-lists are real, so a second reachable centre is genuine insurance — but with
+        // walking distance now carrying 20, this is the half of the trade that gave way.
+        daycareRedundancy: 10,
         // A CWELCC place is worth CAD 800-1200/month against private rates — more than the
         // gap between two listings in this band, which is why it earns its own weight.
         daycareAffordability: 15,
-        transitOperational: 15,
+        /**
+         * A tie-breaker, not a criterion — she has a car.
+         *
+         * Cut from 15 to 4. Distance to rapid transit is still worth *something* (a second
+         * driver is not always available, and it holds value on resale), but it can no longer
+         * decide between two listings on its own. This also removes an accidental penalty on
+         * everywhere outside Toronto: at 15 an address with no subway within walking distance
+         * forfeited 11.6 of the 100 final points, which is most of what made the 905 look bad
+         * next to the 416 rather than merely different.
+         */
+        transitOperational: 4,
         locker: 5,
         rentControlled: 5,
         /**
-         * High enough to break a tie, low enough not to outweigh childcare or transit, which are
-         * the criteria that actually eliminate. Present for ~90% of purpose-built units and ~15%
-         * of condo listings, so the curve is centred on the municipal mean rather than linear —
-         * otherwise the mere fact of being inspected would promote a whole segment.
+         * High enough to break a tie, low enough not to outweigh childcare. Present for ~90%
+         * of purpose-built units and ~15% of condo listings, so the curve is centred on the
+         * municipal mean rather than linear — otherwise the mere fact of being inspected
+         * would promote a whole segment.
          */
         buildingScore: 15,
-        transitFuture: 3,
+        // Kept deliberately near-symbolic: a line opening in 2031 was already worth little
+        // against one that exists today, and with a car it is worth less still.
+        transitFuture: 1,
         inSuiteLaundry: 2,
       },
       anchors: [],
@@ -139,8 +189,14 @@ export function buildSisterProfile(telegramChatIds: string[]): TenantProfile {
        * have silenced exactly the case this profile is meant to catch. 65 keeps that one
        * and still holds back a bit over half of what gets scored.
        *
-       * This is the number to move first if the feed feels wrong in either direction, and
-       * moving it is one UPDATE against this row.
+       * ⚠️ 65 was calibrated against weights summing to 155, and they now sum to 142 with
+       * transit cut from 18 to 5. Every score shifted: a listing that had full marks on
+       * transit lost ~7 points, and one far from any station gained relative ground. The
+       * calibration this number rests on no longer describes the scale it is measuring, so
+       * it is provisional until a cycle has been run and the distribution looked at.
+       *
+       * This is still the number to move first if the feed feels wrong in either direction,
+       * and moving it is one UPDATE against this row.
        */
       minScore: 65,
       quietHours: [22, 7],

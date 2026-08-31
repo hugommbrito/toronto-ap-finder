@@ -396,6 +396,39 @@
     "source": "overpass"
   },
   {
+    "id": "osm:4211146895",
+    "name": "Laurier - Waterloo Park",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4690103,
+    "lng": -80.5346697,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:4211159080",
+    "name": "University of Waterloo",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.473362,
+    "lng": -80.5412782,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:4211598215",
+    "name": "Research and Technology",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4814378,
+    "lng": -80.5451413,
+    "source": "overpass"
+  },
+  {
     "id": "osm:4357782894",
     "name": "Vaughan Metropolitan Centre",
     "line": "Line 1 Yonge-University",
@@ -415,6 +448,39 @@
     "expectedYear": null,
     "lat": 43.732429,
     "lng": -79.2637529,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:5030618311",
+    "name": "Block Line",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4227326,
+    "lng": -80.4629847,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:5030621624",
+    "name": "Fairway",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4223142,
+    "lng": -80.4418635,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:5030624400",
+    "name": "Mill",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4337406,
+    "lng": -80.4780507,
     "source": "overpass"
   },
   {
@@ -792,6 +858,116 @@
     "source": "overpass"
   },
   {
+    "id": "osm:6538626461",
+    "name": "Waterloo Public Square",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4641863,
+    "lng": -80.5228034,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538626463",
+    "name": "Willis Way",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4622371,
+    "lng": -80.5234676,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538730078",
+    "name": "Conestoga",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4983382,
+    "lng": -80.5295416,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855846",
+    "name": "Central Station",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4531378,
+    "lng": -80.4989591,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855848",
+    "name": "Kitchener City Hall",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4520255,
+    "lng": -80.4910757,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855858",
+    "name": "Victoria Park",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4501391,
+    "lng": -80.4934992,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855865",
+    "name": "Queen",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4486795,
+    "lng": -80.4895374,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855868",
+    "name": "Frederick",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4495596,
+    "lng": -80.4874169,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855869",
+    "name": "Kitchener Market",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4463581,
+    "lng": -80.4837384,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:6538855873",
+    "name": "Borden",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4423447,
+    "lng": -80.4750673,
+    "source": "overpass"
+  },
+  {
     "id": "osm:8591494964",
     "name": "Sunnybrook Park",
     "line": "Line 5 Eglinton",
@@ -833,6 +1009,39 @@
     "expectedYear": null,
     "lat": 43.7135918,
     "lng": -79.3648794,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:11961617802",
+    "name": "Grand River Hospital",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4572278,
+    "lng": -80.5118526,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:11961617803",
+    "name": "Allen",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4599335,
+    "lng": -80.5185215,
+    "source": "overpass"
+  },
+  {
+    "id": "osm:11961617825",
+    "name": "Northfield",
+    "line": "ION Line 301",
+    "status": "operational",
+    "mode": "light_rail",
+    "expectedYear": null,
+    "lat": 43.4972157,
+    "lng": -80.543213,
     "source": "overpass"
   },
   {

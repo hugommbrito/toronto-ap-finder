@@ -25,6 +25,8 @@ function daycare(overrides: Partial<DaycarePoint> & Pick<DaycarePoint, 'id' | 'l
     schoolageSpace: 0,
     subsidy: false,
     cwelcc: false,
+    // Toronto-shaped by default: capacity published, so the strict age-group test applies.
+    capacityKnown: true,
     ...overrides,
   };
 }
@@ -51,6 +53,9 @@ function listing(overrides: Partial<ScorableListing> = {}): ScorableListing {
     dens: 0,
     lat: ORIGIN.lat,
     lng: ORIGIN.lng,
+    // Toronto by default, so every pre-existing case keeps full daycare coverage and the
+    // behaviour it was written against. Coverage cases set this explicitly.
+    city: 'City of Toronto',
     hasLocker: null,
     inSuiteLaundry: null,
     buildingBuiltBefore2018: null,
@@ -352,10 +357,19 @@ describe('bedroomFit vs rentBelowTarget — where the trade-off sits', () => {
     expect(score(2, 1, 2950)).toBeLessThan(score(3, 0, 3000));
   });
 
-  it('costs a plain 2BR about 21 points of the final score', () => {
+  /**
+   * ~23.4 points, against a maximum price advantage of ~23.6 — the near-exact tie the weights
+   * are built around. Both figures are over an effective denominator of 127, not the full 142:
+   * these fixtures carry no RentSafe match, so buildingScore (15) is null and drops out.
+   *
+   * The numbers moved when transit was cut for the car (155 -> 142) but the *relationship* did
+   * not, because bedroomFit and rentBelowTarget both kept their weights and so both rescale by
+   * the same denominator. That invariance is the thing worth protecting here.
+   */
+  it('costs a plain 2BR about 23 points of the final score', () => {
     const penalty = score(3, 0, 2900) - score(2, 0, 2900);
-    expect(penalty).toBeGreaterThan(20);
-    expect(penalty).toBeLessThan(22);
+    expect(penalty).toBeGreaterThan(22.5);
+    expect(penalty).toBeLessThan(24.5);
   });
 });
 
@@ -534,9 +548,18 @@ describe('applyHardFilters', () => {
     expect(result.reviews[0]?.field).toBe('parkingIncluded');
   });
 
-  it('rejects the 905', () => {
-    const result = applyHardFilters(filterable({ city: 'Mississauga' }), PROFILE, RICH_GEO);
+  /**
+   * The allowlist now reaches two 905 cities, so "rejects the 905" is no longer the rule —
+   * the rule is that it rejects what is *not on the list*. Hamilton stands in for that.
+   */
+  it('rejects a city that is not on the allowlist', () => {
+    const result = applyHardFilters(filterable({ city: 'Hamilton' }), PROFILE, RICH_GEO);
     expect(result.rejections[0]?.reason).toBe('city');
+  });
+
+  it('admits Mississauga now that it is on the allowlist', () => {
+    const result = applyHardFilters(filterable({ city: 'Mississauga' }), PROFILE, RICH_GEO);
+    expect(result.rejections.map((r) => r.reason)).not.toContain('city');
   });
 
   /**
@@ -679,5 +702,218 @@ describe('calibration sanity — three synthetic listings', () => {
     expect(midNoLocker.score).toBeGreaterThan(atCeiling.score);
     // The cheap, well-served listing should clear the notify threshold; the ceiling one should not.
     expect(cheapWithCwelcc.score).toBeGreaterThanOrEqual(PROFILE.notify.minScore);
+  });
+});
+
+/**
+ * Regional coverage — the difference between "we looked and there is nothing" and "nobody
+ * publishes this here".
+ *
+ * Toronto is the only region that publishes licensed capacity per age group. Peel and Waterloo
+ * publish locations only, and the County of Simcoe publishes nothing, so `daycaresWithin`
+ * returning an empty set stopped being a single fact. These tests pin the three outcomes,
+ * because collapsing them back into a rejection is the failure mode that would silently throw
+ * away every listing in the 905.
+ */
+describe('daycare coverage outside Toronto', () => {
+  /** Square One, Mississauga. Peel — presence known, age bands not published. */
+  const MISSISSAUGA = { lat: 43.5890, lng: -79.6441 };
+  /** ~290 m walking from Square One. */
+  const NEAR_SQUARE_ONE = { lat: 43.5912, lng: -79.6441 };
+
+  function place(overrides: Partial<FilterableListing> = {}): FilterableListing {
+    return {
+      beds: 3,
+      dens: 0,
+      totalMonthlyCost: 2800,
+      parkingIncluded: true,
+      parkingCost: null,
+      city: 'Mississauga',
+      lat: MISSISSAUGA.lat,
+      lng: MISSISSAUGA.lng,
+      availableFrom: null,
+      ...overrides,
+    };
+  }
+
+  /** A Peel row: located, but with no published capacity. */
+  const peelCentre = daycare({
+    id: 'peel:1',
+    ...NEAR_SQUARE_ONE,
+    capacityKnown: false,
+    toddlerSpace: 0,
+  });
+
+  const PEEL_GEO = new GeoIndex([peelCentre], []);
+  const NO_CENTRES = new GeoIndex([], []);
+
+  it('holds a Mississauga listing for review rather than passing it', () => {
+    const result = applyHardFilters(place(), PROFILE, PEEL_GEO);
+    expect(result.decision).toBe('review');
+    expect(result.rejections).toEqual([]);
+    expect(result.reviews.map((r) => r.field)).toContain('minDaycaresWithin');
+    expect(result.reviews.find((r) => r.field === 'minDaycaresWithin')?.reason).toMatch(
+      /publish no capacity per age group/,
+    );
+  });
+
+  /**
+   * Absence is still a verdict. Not knowing the age bands does not stop us knowing there is no
+   * licensed centre within 800 m, so this one is a genuine rejection and not a gap.
+   */
+  it('still rejects a Mississauga listing with no centre at all in range', () => {
+    const result = applyHardFilters(place(), PROFILE, NO_CENTRES);
+    expect(result.decision).toBe('reject');
+    expect(result.rejections.map((r) => r.reason)).toContain('daycare_coverage');
+  });
+
+  it('leaves Toronto behaving exactly as before', () => {
+    const inToronto = place({ city: 'City of Toronto', lat: ORIGIN.lat, lng: ORIGIN.lng });
+    expect(applyHardFilters(inToronto, PROFILE, NO_CENTRES).rejections.map((r) => r.reason)).toContain(
+      'daycare_coverage',
+    );
+    // And a Toronto centre with no toddler places is still not good enough.
+    const preschoolOnly = new GeoIndex([daycare({ id: 't1', ...CLOSE, toddlerSpace: 0, preschoolSpace: 40 })], []);
+    expect(applyHardFilters(inToronto, PROFILE, preschoolOnly).rejections.map((r) => r.reason)).toContain(
+      'daycare_coverage',
+    );
+  });
+
+  /**
+   * The border case, and the reason `capacityKnown` lives on the point rather than being
+   * inferred from the listing's city. A Mississauga address near Etobicoke has Toronto centres
+   * in range; those published their capacity, so they are still held to it. Waiving the age
+   * group for them would use Peel's shortcoming as an excuse to weaken the filter in Toronto.
+   */
+  it('does not let a Peel address excuse a Toronto centre with no toddler places', () => {
+    const torontoPreschoolOnly = daycare({
+      id: 'toronto:9',
+      ...NEAR_SQUARE_ONE,
+      capacityKnown: true,
+      toddlerSpace: 0,
+      preschoolSpace: 50,
+    });
+    const result = applyHardFilters(place(), PROFILE, new GeoIndex([torontoPreschoolOnly], []));
+    expect(result.decision).toBe('reject');
+    expect(result.rejections.map((r) => r.reason)).toContain('daycare_coverage');
+  });
+
+  /**
+   * Regions do not stop where their data does, and the verdict follows the centres rather than
+   * the postcode. Both directions were wrong when it followed the listing's region instead.
+   */
+  it('reviews an Etobicoke listing whose only nearby centre is a Peel row', () => {
+    const peelAcrossTheCreek = daycare({
+      id: 'peel:9',
+      ...NEAR_SQUARE_ONE,
+      capacityKnown: false,
+    });
+    const inEtobicoke = place({ city: 'Etobicoke', lat: MISSISSAUGA.lat, lng: MISSISSAUGA.lng });
+    const result = applyHardFilters(inEtobicoke, PROFILE, new GeoIndex([peelAcrossTheCreek], []));
+    // Before, the strict query could not see it at all and this was reported as `found: 0`.
+    expect(result.decision).toBe('review');
+    expect(result.rejections).toEqual([]);
+  });
+
+  it('passes a Mississauga listing whose nearby centre did publish a toddler place', () => {
+    const torontoAcrossTheBorder = daycare({
+      id: 'toronto:5',
+      ...NEAR_SQUARE_ONE,
+      capacityKnown: true,
+      toddlerSpace: 25,
+    });
+    const result = applyHardFilters(place(), PROFILE, new GeoIndex([torontoAcrossTheBorder], []));
+    // Nothing is uncertain here, so it must not be held for review about Peel's data.
+    expect(result.decision).toBe('pass');
+    expect(result.reviews).toEqual([]);
+  });
+
+  it('reviews, rather than rejects, a city no dataset covers', () => {
+    const wasaga: TenantProfile = {
+      ...PROFILE,
+      hard: { ...PROFILE.hard, cities: ['Wasaga Beach'], excludeAreas: [] },
+    };
+    const there = place({ city: 'Wasaga Beach', lat: 44.5209, lng: -80.0163 });
+    const result = applyHardFilters(there, wasaga, NO_CENTRES);
+    expect(result.decision).toBe('review');
+    expect(result.reviews.find((r) => r.field === 'minDaycaresWithin')?.reason).toMatch(
+      /no child care dataset covers Wasaga Beach/,
+    );
+  });
+
+  describe('scoring', () => {
+    function scoreAt(city: string, at: { lat: number; lng: number }, geo: GeoIndex) {
+      return scoreListing({
+        listing: listing({ city, lat: at.lat, lng: at.lng }),
+        profile: PROFILE,
+        geo,
+      });
+    }
+
+    /**
+     * Half credit, not full and not null.
+     *
+     * Null would drop the criterion out of the denominator and renormalise the score over
+     * bedrooms and rent — the axis where the 905 wins — systematically promoting the listings
+     * we know least about. Half keeps it in the denominator and prices the uncertainty.
+     */
+    it('pays presence-only childcare at half the Toronto rate', () => {
+      const sameDistance = { lat: NEAR_SQUARE_ONE.lat - MISSISSAUGA.lat, lng: 0 };
+
+      const peel = scoreAt('Mississauga', MISSISSAUGA, PEEL_GEO);
+      const toronto = scoreAt(
+        'City of Toronto',
+        ORIGIN,
+        new GeoIndex([daycare({ id: 't', lat: ORIGIN.lat + sameDistance.lat, lng: ORIGIN.lng })], []),
+      );
+
+      expect(peel.rawComponents.daycareProximity).toBeCloseTo(
+        toronto.rawComponents.daycareProximity! / 2,
+        5,
+      );
+      expect(peel.rawComponents.daycareRedundancy).toBeCloseTo(
+        toronto.rawComponents.daycareRedundancy! / 2,
+        5,
+      );
+    });
+
+    /**
+     * Affordability abstains instead of taking a haircut: unlike distance, the measurement
+     * itself is absent. Neither region publishes CWELCC, so scoring it would report the whole
+     * 905 as having no $10/day childcare — something nobody measured.
+     */
+    it('abstains on affordability where CWELCC is unpublished', () => {
+      const peel = scoreAt('Mississauga', MISSISSAUGA, PEEL_GEO);
+      expect(peel.skipped).toContain('daycareAffordability');
+      expect(peel.rawComponents.daycareAffordability).toBeUndefined();
+      expect(peel.rawComponents.daycareProximity).toBeGreaterThan(0);
+    });
+
+    it('drops all three childcare components where no dataset reaches', () => {
+      const nowhere = scoreListing({
+        listing: listing({ city: 'Wasaga Beach', lat: 44.5209, lng: -80.0163 }),
+        profile: PROFILE,
+        geo: NO_CENTRES,
+      });
+      expect(nowhere.skipped).toEqual(
+        expect.arrayContaining(['daycareProximity', 'daycareRedundancy', 'daycareAffordability']),
+      );
+    });
+
+    /**
+     * The car, in one assertion. Transit was 18 of 155 weight and is now 5 of 142, so an
+     * address with no station within walking distance forfeits ~3.5 points rather than ~11.6.
+     * That is most of what used to make the 905 look bad rather than merely different.
+     */
+    it('costs an address with no nearby station only a few points', () => {
+      const geoWithFarStation = new GeoIndex([], [station({ id: 'far', lat: 44.5, lng: -80.0 })]);
+      const withStation = new GeoIndex([], [station({ id: 'near', ...CLOSE })]);
+
+      const far = scoreListing({ listing: listing(), profile: PROFILE, geo: geoWithFarStation });
+      const near = scoreListing({ listing: listing(), profile: PROFILE, geo: withStation });
+
+      expect(near.score - far.score).toBeLessThan(5);
+      expect(near.score - far.score).toBeGreaterThan(0);
+    });
   });
 });

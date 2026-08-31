@@ -21,6 +21,15 @@ export const sourceBuildings = pgTable(
     url: text('url').notNull(),
     name: text('name'),
     address: text('address'),
+    /**
+     * The municipality, persisted because the round trip through this table is otherwise lossy.
+     *
+     * A building is enumerated once and then re-opened from a row, never from the freshly parsed
+     * entry — so without this column `buildingFromRow` had to invent `city: null`, and Zumper
+     * propagated that to every unit it produced. Harmless while nothing read the city; it became
+     * a real fault once the dedup fingerprint and the childcare coverage check both did.
+     */
+    city: text('city'),
     lat: doublePrecision('lat'),
     lng: doublePrecision('lng'),
     floorplanCount: integer('floorplan_count'),

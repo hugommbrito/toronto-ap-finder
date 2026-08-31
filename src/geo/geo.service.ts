@@ -39,6 +39,7 @@ export class GeoService implements OnModuleInit {
       schoolageSpace: d.schoolageSpace,
       subsidy: d.subsidy,
       cwelcc: d.cwelcc,
+      capacityKnown: d.capacityKnown,
     }));
 
     const stationPoints: TransitPoint[] = stationRows.map((s) => ({

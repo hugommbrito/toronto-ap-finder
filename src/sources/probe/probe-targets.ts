@@ -34,6 +34,17 @@ export interface ProbeTarget {
  * is absent for a different reason — same backend as Zumper, so it would duplicate work for the same
  * inventory.
  */
+/**
+ * One target per source, not one per region — a deliberate choice now that sources rotate.
+ *
+ * The probe measures a site's anti-bot posture for a *shape of path*, not its inventory, and
+ * that posture does not vary by city. Adding a target per region would triple the weekly
+ * requests for no new information, and would collide on `source_policy`'s primary key, which is
+ * (source_id, probed_from) with no room for a region.
+ *
+ * Each URL still comes from the adapter's own builder at its default target, so a change to the
+ * builder is a change to what gets measured.
+ */
 export const PROBE_TARGETS: ProbeTarget[] = [
   {
     id: 'kijiji',

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { loadEnv } from '@/config/env';
 import { buildFingerprint } from '@/geo/address';
+import { daycareCoverageOf } from '@/geo/coverage';
 import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
@@ -19,7 +20,13 @@ import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/
 import { RentSafeService } from '@/rentsafe/rentsafe.service';
 import { applyRentSafe } from '@/rentsafe/apply';
 import { applyVerdict } from '@/verification/apply-verdict';
-import type { BuildingListingSource, SourceHealth, UnitListingSource } from '@/sources/source.interface';
+import {
+  pickLeastRecentlyVisited,
+  type BuildingListingSource,
+  type SearchTarget,
+  type SourceHealth,
+  type UnitListingSource,
+} from '@/sources/source.interface';
 
 export interface CycleOptions {
   /** Search-result pages to walk. 5 pages is 200 ads, which comfortably covers 20 minutes. */
@@ -159,16 +166,50 @@ export class PipelineService {
       this.alerted.delete(source.name);
     }
 
+    const target = await this.nextTarget(source);
+    this.logger.log(`${source.name}: searching ${target.label}`);
+
+    /**
+     * From here the visit is recorded whatever happens, which is what keeps the rotation moving.
+     *
+     * `finish` writes the cycle_runs row that `nextTarget` reads back, so anything throwing
+     * between the two — an upsert, a notifier call, a recheck query — used to leave no row at
+     * all. The scheduler swallows the error and re-arms, and a never-visited target sorts first,
+     * so a failure that is deterministic for one region's data pinned Kijiji to that region
+     * forever while the other two starved, with no cycle_runs evidence that it had happened.
+     * runBuildingCycle already advances on attempts rather than successes; this is the same rule.
+     */
+    try {
+      await this.runUnitStages(source, target, profiles, geo, report, options, maxPages, hydrationBudget);
+    } finally {
+      await this.finish('unit', 'listings', source.name, startedAt, report, target.key);
+    }
+    await this.alertIfPaused(profiles, report);
+    return report;
+  }
+
+  /** The three stages of a unit cycle, split out so the caller can guarantee the run is recorded. */
+  private async runUnitStages(
+    source: UnitListingSource,
+    target: SearchTarget,
+    profiles: TenantProfile[],
+    geo: GeoIndex,
+    report: CycleReport,
+    options: CycleOptions,
+    maxPages: number,
+    hydrationBudget: number,
+  ): Promise<void> {
     // --- Stage A: triage -----------------------------------------------------------
     const candidates = new Map<string, { listing: TriageListing; listingId: string; profiles: TenantProfile[] }>();
 
     for (let page = 1; page <= maxPages; page += 1) {
       let triage;
       try {
-        triage = await source.fetchTriagePage(page);
+        triage = await source.fetchTriagePage(page, target);
       } catch (err) {
-        // A structural change at the source must be loud, not an empty cycle.
-        report.errors.push(`page ${page}: ${(err as Error).message}`);
+        // A structural change at the source must be loud, not an empty cycle. Labelled with the
+        // target, because "page 2 failed" is ambiguous once there is more than one region.
+        report.errors.push(`${target.key} page ${page}: ${(err as Error).message}`);
         break;
       }
       report.pagesFetched += 1;
@@ -264,10 +305,6 @@ export class PipelineService {
 
     // --- Stage C: confirm the ones already found are still there ---------------------
     await this.recheck(source, profiles, options.recheckBudget ?? DEFAULT_RECHECK_BUDGET, report);
-
-    await this.finish('unit', 'listings', source.name, startedAt, report);
-    await this.alertIfPaused(profiles, report);
-    return report;
   }
 
   /**
@@ -303,13 +340,32 @@ export class PipelineService {
     for (const source of this.registry.buildingSources()) {
       const startedAt = new Date();
       const before = report.errors.length;
+      /**
+       * Chosen here, before the work, so the visit is recorded even if the source throws.
+       *
+       * Taking it from the return value instead would leave the target null on failure, and a
+       * never-visited target sorts first — so a region that reliably fails would be picked every
+       * cycle forever while the others starved. The rotation has to advance on attempts, not on
+       * successes.
+       */
+      const target = await this.nextTarget(source);
+      if (source.searchTargets.length > 1) {
+        this.logger.log(`${source.name}: enumerating ${target.label}`);
+      }
       try {
-        await this.runOneBuildingSource(source, profiles, geo, options, report);
+        await this.runOneBuildingSource(source, target, profiles, geo, options, report);
       } catch (err) {
         // One source failing must not abort the others; that is the whole reason for the loop.
         report.errors.push(`${source.name}: ${(err as Error).message}`);
       }
-      await this.recordRun('buildings', source.name, startedAt, report, report.errors.slice(before));
+      await this.recordRun(
+        'buildings',
+        source.name,
+        startedAt,
+        report,
+        report.errors.slice(before),
+        target.key,
+      );
     }
 
     this.lastCycles.set('building', { finishedAt: new Date(), report });
@@ -321,6 +377,7 @@ export class PipelineService {
   /** One building source, from enumeration to notification. */
   private async runOneBuildingSource(
     source: BuildingListingSource,
+    target: SearchTarget,
     profiles: TenantProfile[],
     geo: GeoIndex,
     options: CycleOptions,
@@ -336,7 +393,7 @@ export class PipelineService {
     // --- Stage A: enumerate buildings ------------------------------------------------
     for (let page = 1; page <= maxPages; page += 1) {
       try {
-        const result = await source.fetchBuildingPage(page);
+        const result = await source.fetchBuildingPage(page, target);
         report.pagesFetched += 1;
         report.buildingsSeen += result.buildings.length;
         report.unparsable += result.unparsable.length;
@@ -389,16 +446,51 @@ export class PipelineService {
     }
   }
 
-  /** Marks a unit cycle finished: remembers it for /health and records it for the history. */
+  /**
+   * The search target for this cycle: whichever the source has gone longest without visiting.
+   *
+   * One target per cycle rather than all of them, and the reason is Kijiji's rate limit. Its
+   * cap is a rolling budget, not a gap between calls — 6 s between requests still got the next
+   * cycle refused outright — so the constraint is requests per window, not pacing. Three
+   * regions at the current depth would be ~75 requests in one run: roughly 19 minutes at a
+   * 12-18 s gap, which both overruns CYCLE_MIN_MS (15 min) and reproduces the burst shape that
+   * earned a 429 in the first place.
+   *
+   * Rotating instead keeps a cycle at ~25 requests and ~6 minutes, and each region is visited
+   * about every third cycle. The cost is discovery latency per region, which is the right thing
+   * to trade: an ad that appeared five minutes ago is still there in twenty.
+   *
+   * Never-visited targets sort first, so a newly added region backfills before the established
+   * ones refresh.
+   */
+  private async nextTarget(source: SourceHealth & { searchTargets: readonly SearchTarget[] }): Promise<SearchTarget> {
+    const targets = source.searchTargets;
+    const only = targets[0]!;
+    if (targets.length === 1) return only;
+
+    let lastVisited: Map<string, Date>;
+    try {
+      lastVisited = await this.repo.lastVisitedByTarget(source.name);
+    } catch (err) {
+      // History is an optimisation here, not a correctness requirement: losing it means the
+      // rotation restarts rather than stops.
+      this.logger.warn(`could not read target history for ${source.name}: ${(err as Error).message}`);
+      return only;
+    }
+
+    return pickLeastRecentlyVisited(targets, lastVisited);
+  }
+
   private async finish(
     slot: 'unit' | 'building',
     kind: string,
     source: string | null,
     startedAt: Date,
     report: CycleReport,
+    target: string | null = null,
   ): Promise<void> {
     this.lastCycles.set(slot, { finishedAt: new Date(), report });
-    await this.recordRun(kind, source, startedAt, report, report.errors);
+    await this.recordRun(kind, source, startedAt, report, report.errors, target);
   }
 
   /**
@@ -413,11 +505,13 @@ export class PipelineService {
     startedAt: Date,
     report: CycleReport,
     errors: string[],
+    target: string | null = null,
   ): Promise<void> {
     try {
       await this.repo.recordCycleRun({
         kind,
         source,
+        target,
         startedAt,
         finishedAt: new Date(),
         ok: errors.length === 0,
@@ -844,14 +938,37 @@ export class PipelineService {
       return {
         reachableLines: [],
         transitRadiusM,
-        daycaresNearby: { total: 0, cwelcc: 0, radiusM },
+        // Nothing was searched — there is no point to search from. Claiming 'full' here made the
+        // message print "0 toddler daycares within 800 m", which is a measurement nobody took.
+        daycaresNearby: { total: 0, cwelcc: 0, radiusM, coverage: 'none' },
         nearestDaycare: null,
         mapStops: [],
       };
     }
     const point = { lat: listing.lat, lng: listing.lng };
+    /**
+     * Counted the same way the hard filter counted, or the message contradicts the decision.
+     *
+     * Strictly, a Mississauga listing has no centre with a *confirmed* toddler place, so the
+     * strict query returns zero — and a notification reading "0 toddler daycares within 800 m"
+     * on an ad that passed the childcare filter is worse than useless.
+     */
+    const reaches = daycareCoverageOf(listing.city) !== 'none';
     // daycaresWithin already returns them sorted by distance, so the first is the closest.
-    const nearby = cfg ? geo.daycaresWithin(point, radiusM, cfg.ageGroup) : [];
+    const nearby =
+      cfg && reaches
+        ? geo.daycaresWithin(point, radiusM, cfg.ageGroup, { acceptUnknownCapacity: true })
+        : [];
+    /**
+     * Follows the centres counted, so the wording matches the verdict the filter reached.
+     * A Mississauga listing whose one centre is a published Toronto row gets Toronto's phrasing,
+     * because that is what was actually measured.
+     */
+    const coverage: 'full' | 'presenceOnly' | 'none' = !reaches
+      ? 'none'
+      : nearby.every((n) => n.daycare.capacityKnown)
+        ? 'full'
+        : 'presenceOnly';
     const closest = nearby[0];
     const lines = reachableLines(geo.stationsWithin(point, transitRadiusM, 'operational'));
     // Nearest station first, then the closest daycares: with only three slots, the station is
@@ -869,6 +986,7 @@ export class PipelineService {
         total: nearby.length,
         cwelcc: nearby.filter((n) => n.daycare.cwelcc).length,
         radiusM,
+        coverage,
       },
       nearestDaycare: closest
         ? {
@@ -886,6 +1004,7 @@ export class PipelineService {
 function fingerprintOf(listing: TriageListing): string {
   return buildFingerprint({
     address: listing.address,
+    city: listing.city,
     beds: listing.beds,
     dens: listing.dens,
     rentBase: listing.rentBase,
@@ -985,7 +1104,7 @@ function buildingFromRow(row: SourceBuildingRow): BuildingEntry {
     url: row.url,
     name: row.name ?? '',
     address: row.address,
-    city: null,
+    city: row.city,
     lat: row.lat,
     lng: row.lng,
     minPrice: null,

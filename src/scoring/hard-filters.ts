@@ -1,6 +1,7 @@
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { cityMatches } from '@/geo/city';
 import { excludedAreaOf } from '@/geo/areas';
+import { regionOf } from '@/geo/coverage';
 import { evaluateBedroomRule } from './bedroom-rule';
 import type { GeoIndex } from './context';
 
@@ -140,12 +141,50 @@ export function applyHardFilters(
 
     if (hard.minDaycaresWithin) {
       const { radiusM, count, ageGroup } = hard.minDaycaresWithin;
-      const found = geo.daycaresWithin(point, radiusM, ageGroup).length;
-      if (found < count) {
-        rejections.push({
-          reason: 'daycare_coverage',
-          detail: { found, required: count, radiusM, ageGroup },
+
+      if (regionOf(listing.city) === null) {
+        // No dataset reaches here, so the filter was never evaluated. Holding the listing is
+        // the only honest answer — the same rule excludedAreaOf follows for a missing boundary.
+        reviews.push({
+          field: 'minDaycaresWithin',
+          reason: `no child care dataset covers ${listing.city ?? 'this city'}; ${count} within ${radiusM} m unverified`,
         });
+      } else {
+        /**
+         * Decided by the centres actually counted, never by which region the listing sits in.
+         *
+         * Regions do not stop where their data does. An Etobicoke address near Etobicoke Creek
+         * has Peel centres in range, and a Mississauga address by Renforth has Toronto ones —
+         * and keying the verdict on the listing's own region got both of those backwards. It
+         * rejected the Etobicoke listing outright, because the strict query cannot see a Peel
+         * centre 485 m away and reported `found: 0` as a fact about the neighbourhood. And it
+         * told the Mississauga listing that "Peel does not publish capacity per age group" when
+         * the only centre in range was a Toronto row with a published toddler place.
+         *
+         * So count once, permissively, then split by what each centre actually published:
+         *
+         *   enough with a published place for the age group  -> pass, nothing is uncertain
+         *   enough only by leaning on unpublished capacity   -> review
+         *   not enough even counting those                   -> reject, a real absence
+         */
+        const nearby = geo.daycaresWithin(point, radiusM, ageGroup, { acceptUnknownCapacity: true });
+        const published = nearby.filter((n) => n.daycare.capacityKnown).length;
+
+        if (published >= count) {
+          // Requirement met by centres that published the age group; nothing is in doubt.
+        } else if (nearby.length >= count) {
+          reviews.push({
+            field: 'minDaycaresWithin',
+            reason:
+              `${nearby.length} licensed centre(s) within ${radiusM} m, but ${nearby.length - published} ` +
+              `of them publish no capacity per age group — ${ageGroup} places unconfirmed`,
+          });
+        } else {
+          rejections.push({
+            reason: 'daycare_coverage',
+            detail: { found: nearby.length, publishedCapacity: published, required: count, radiusM, ageGroup },
+          });
+        }
       }
     }
 

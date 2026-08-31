@@ -20,6 +20,15 @@ export const cycleRuns = pgTable(
     kind: text('kind').notNull(),
     /** Null for a stored re-scoring run, which touches no source at all. */
     source: text('source'),
+    /**
+     * Which search target this run visited, e.g. `peel`. Null where the source has only one.
+     *
+     * Its own column rather than being folded into `source` as `'kijiji:peel'`, deliberately:
+     * `operations.service.ts` groups runs by matching `source` against the registry's source
+     * names, so a compound value would silently vanish from that grouping. It is also what the
+     * rotation reads — the next target is the one whose last run here is oldest.
+     */
+    target: text('target'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
     finishedAt: timestamp('finished_at', { withTimezone: true }).notNull(),
     /** No errors. Kept as its own column so the common query is not a jsonb dig. */
@@ -31,6 +40,8 @@ export const cycleRuns = pgTable(
   (t) => ({
     startedIdx: index('cycle_runs_started_idx').on(t.startedAt),
     sourceIdx: index('cycle_runs_source_idx').on(t.source, t.startedAt),
+    /** Serves the rotation query: newest run per (source, target). */
+    targetIdx: index('cycle_runs_target_idx').on(t.source, t.target, t.startedAt),
   }),
 );
 

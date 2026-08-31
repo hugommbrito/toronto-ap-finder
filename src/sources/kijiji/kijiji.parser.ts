@@ -1,6 +1,7 @@
 import type { TriageListing } from '@/listings/listing.types';
+import { cityFromAddress } from '@/geo/address';
 import { splitHalfBedroomEncoding } from '@/scoring/bedroom-rule';
-import type { ListingDetail, TriagePage, UnparsableListing } from '../source.interface';
+import type { ListingDetail, SearchTarget, TriagePage, UnparsableListing } from '../source.interface';
 
 /**
  * Pure parsing for Kijiji. No network, no database — every function here is driven by the
@@ -167,7 +168,15 @@ export function parseSearchPage(nextData: unknown): TriagePage {
       hasLocker: tristateFromAttribute(attrs.get('storagelocker')),
       inSuiteLaundry: tristateFromAttribute(attrs.get('laundryinunit')),
       address: item.location?.address ?? null,
-      city: item.location?.name ?? null,
+      /**
+       * The address first, the label second.
+       *
+       * `location.name` is the *region the search ran in*, not the municipality — it reads
+       * "Mississauga / Peel Region" for an ad in Brampton and "Kitchener / Waterloo" for one in
+       * Orangeville. That was invisible while the only target was Toronto, whose label happens
+       * to be a municipality. `location.address` carries the real one.
+       */
+      city: cityFromAddress(item.location?.address) ?? item.location?.name ?? null,
       lat: typeof coords?.latitude === 'number' ? coords.latitude : null,
       lng: typeof coords?.longitude === 'number' ? coords.longitude : null,
       availableFrom: null,
@@ -211,8 +220,38 @@ export function parseDetailPage(nextData: unknown): ListingDetail {
  * robots.txt, and the bedroom filter has no path equivalent at all — which is why triage
  * filters in memory. The plain path already sorts newest-first.
  */
-export function buildSearchUrl(page: number, locationId = 1700273, categoryId = 37): string {
-  const base = 'https://www.kijiji.ca/b-apartments-condos/city-of-toronto';
-  const suffix = `c${categoryId}l${locationId}`;
+export function buildSearchUrl(page: number, target: KijijiTarget = KIJIJI_TARGETS[0]!, categoryId = 37): string {
+  const base = `https://www.kijiji.ca/b-apartments-condos/${target.slug}`;
+  const suffix = `c${categoryId}l${target.locationId}`;
   return page <= 1 ? `${base}/${suffix}` : `${base}/page-${page}/${suffix}`;
 }
+
+/**
+ * A Kijiji region: the human slug and the numeric id must agree, which is why they travel
+ * together. `locationId` used to be a parameter while the slug stayed hardcoded as
+ * `city-of-toronto`, so passing a different id emitted an internally inconsistent URL that
+ * happened to still resolve.
+ *
+ * **Kijiji's granularity is regional, not municipal**, and that has consequences the profile has
+ * to absorb:
+ *
+ * - `mississauga-peel-region` covers all of Peel, so it returns Brampton by the hundred. The
+ *   `excludeAreas: ['Brampton']` entry in the profile stopped being belt-and-braces the moment
+ *   this target was added — it is now the only thing filtering it out.
+ * - There is no Cambridge region at all; Cambridge listings arrive inside
+ *   `kitchener-waterloo` alongside Kitchener, Waterloo and the townships, and `hard.cities` is
+ *   what narrows them down.
+ *
+ * So these targets deliberately over-fetch, and the city allowlist is load-bearing rather than
+ * decorative. That is the same trade CAPREIT already makes with its national sitemap.
+ */
+export interface KijijiTarget extends SearchTarget {
+  slug: string;
+  locationId: number;
+}
+
+export const KIJIJI_TARGETS: readonly KijijiTarget[] = [
+  { key: 'toronto', label: 'City of Toronto', slug: 'city-of-toronto', locationId: 1700273 },
+  { key: 'peel', label: 'Mississauga / Peel Region', slug: 'mississauga-peel-region', locationId: 1700276 },
+  { key: 'waterloo', label: 'Kitchener / Waterloo (incl. Cambridge)', slug: 'kitchener-waterloo', locationId: 1700212 },
+];

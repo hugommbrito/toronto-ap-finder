@@ -9,9 +9,28 @@ import { boolean, doublePrecision, index, integer, pgTable, text, timestamp } fr
 export const daycares = pgTable(
   'daycares',
   {
-    /** LOC_ID from the source dataset. */
+    /**
+     * Namespaced per region: `toronto:1013`, `peel:4471`, `waterloo:882`.
+     *
+     * The bare upstream id would collide. Toronto's LOC_ID values are small integers and so
+     * are Peel's LM_ID and Waterloo's FacilityMasterID, so `"1013"` means three different
+     * centres — and the seed upserts on this key, which would have silently overwritten one
+     * region's centre with another's.
+     */
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    /** Which dataset this row came from. Matches CoverageRegion.key in geo/coverage.ts. */
+    region: text('region').notNull().default('toronto'),
+    /**
+     * Whether the capacity columns below mean anything.
+     *
+     * Only the City of Toronto publishes licensed capacity per age group. For Peel and
+     * Waterloo rows every capacity column is 0, and this flag is what stops that being read
+     * as "licensed for nobody" — the seeder's `int()` coerces an absent field to 0, so the
+     * value alone cannot carry the difference. Consulted via geo/coverage.ts rather than
+     * directly: coverage is a property of the region, and this is the per-row record of it.
+     */
+    capacityKnown: boolean('capacity_known').notNull().default(true),
     auspice: text('auspice'),
     address: text('address'),
     postalCode: text('postal_code'),
@@ -46,6 +65,7 @@ export const daycares = pgTable(
   (t) => ({
     toddlerIdx: index('daycares_toddler_idx').on(t.toddlerSpace),
     cwelccIdx: index('daycares_cwelcc_idx').on(t.cwelcc),
+    regionIdx: index('daycares_region_idx').on(t.region),
   }),
 );
 

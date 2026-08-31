@@ -64,7 +64,7 @@ function payload(chatIds: string[]): NotificationPayload {
     },
     score: { score: 80, breakdown: { bedroomFit: 25 }, rawComponents: {}, skipped: [] },
     reachableLines: [], transitRadiusM: 1200,
-    daycaresNearby: { total: 1, cwelcc: 1, radiusM: 800 }, nearestDaycare: null,
+    daycaresNearby: { total: 1, cwelcc: 1, radiusM: 800, coverage: 'full' as const }, nearestDaycare: null,
     unverified: [],
   };
 }

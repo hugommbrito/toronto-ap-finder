@@ -1,8 +1,8 @@
 import { fetchText } from '@/seed/http';
 import type { TriageListing } from '@/listings/listing.types';
-import type { BuildingEntry, BuildingListingSource, BuildingPage } from '../source.interface';
+import type { BuildingEntry, BuildingListingSource, BuildingPage, SearchTarget } from '../source.interface';
 import { RateLimiter } from '../rate-limiter';
-import { buildSearchUrl, parseBuildingPage, parseSearchPage } from './zumper.parser';
+import { buildSearchUrl, parseBuildingPage, parseSearchPage, ZUMPER_TARGETS } from './zumper.parser';
 
 /**
  * Zumper I/O. Parsing lives in zumper.parser.ts so it stays testable without a network.
@@ -57,9 +57,17 @@ export class ZumperSource implements BuildingListingSource {
     return this.limiter.resetIfCooledDown(cooldownMs);
   }
 
-  async fetchBuildingPage(page: number): Promise<BuildingPage> {
+  readonly searchTargets = ZUMPER_TARGETS;
+
+  async fetchBuildingPage(page: number, target: SearchTarget = ZUMPER_TARGETS[0]!): Promise<BuildingPage> {
+    const slug = ZUMPER_TARGETS.find((t) => t.key === target.key)?.citySlug;
+    if (!slug) {
+      throw new Error(
+        `zumper has no search target "${target.key}"; known: ${ZUMPER_TARGETS.map((t) => t.key).join(', ')}`,
+      );
+    }
     const html = await this.limiter.run(() =>
-      fetchText(buildSearchUrl(page), { contactEmail: this.contactEmail, retries: 2 }),
+      fetchText(buildSearchUrl(page, slug), { contactEmail: this.contactEmail, retries: 2 }),
     );
     return parseSearchPage(html);
   }

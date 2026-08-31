@@ -1,4 +1,11 @@
-import { clamp01, linearDecay, type ScoreComponent, type ScoringContext } from '../context';
+import {
+  clamp01,
+  linearDecay,
+  type NearbyDaycare,
+  type ScoreComponent,
+  type ScoringContext,
+} from '../context';
+import { daycareCoverageOf } from '@/geo/coverage';
 import { evaluateBedroomRule } from '../bedroom-rule';
 
 const DEFAULT_DAYCARE_RADIUS_M = 800;
@@ -19,16 +26,82 @@ function daycareConfig(ctx: ScoringContext): { radiusM: number; ageGroup: 'infan
   return { radiusM: cfg.radiusM || DEFAULT_DAYCARE_RADIUS_M, ageGroup: cfg.ageGroup };
 }
 
-/** 1.0 at the same address, decaying linearly to 0 at the profile's radius. */
-export const daycareProximity: ScoreComponent = (ctx) => {
+/**
+ * How much credit a region's data can actually earn.
+ *
+ * Peel and Waterloo publish where licensed centres are and nothing about who they are
+ * licensed for, so "a centre 200 m away" is a weaker claim there than the same sentence about
+ * Toronto, where it means 200 m to a centre with **toddler places**. Paying both in full would
+ * quietly rank an unverified centre above a verified one.
+ *
+ * Nulling the components instead was the obvious alternative and is worse. A null drops out of
+ * the denominator, so the score renormalises over what is left — here `bedroomFit` (35) and
+ * `rentBelowTarget` (30), which is exactly the axis where the 905 wins on price. That would
+ * systematically promote the listings we know *least* about. Same bias `buildingScore` reasons
+ * through below, running in the other direction.
+ *
+ * So: half credit, kept in the denominator. A presence-only listing can still beat a Toronto
+ * one, but it has to do it on rent and layout rather than on childcare it was never shown to have.
+ */
+const PRESENCE_ONLY_CONFIDENCE = 0.5;
+
+interface DaycareLookup {
+  nearby: NearbyDaycare[];
+  /** Multiplier on any credit earned. 1 where capacity per age group is published. */
+  confidence: number;
+  /**
+   * Carried explicitly rather than inferred from `confidence !== 1`.
+   *
+   * Affordability has to abstain where capacity is unpublished, and reading that off the
+   * multiplier couples the two: tuning PRESENCE_ONLY_CONFIDENCE to 1 would silently start
+   * scoring CWELCC for regions that publish none of it.
+   */
+  capacityPublished: boolean;
+}
+
+/**
+ * Resolves the nearby set against whatever the region actually publishes.
+ *
+ * Returns null — "cannot know" — when there are no coordinates, when the profile asked for no
+ * daycare filter, or when no dataset covers the city at all. That last case is the one worth
+ * naming: a region we have no data for must not score 0, because 0 is a claim.
+ */
+function daycareLookup(ctx: ScoringContext): DaycareLookup | null {
   const from = origin(ctx);
   const cfg = daycareConfig(ctx);
   if (!from || !cfg) return null;
 
-  const nearby = ctx.geo.daycaresWithin(from, cfg.radiusM, cfg.ageGroup);
-  const nearest = nearby[0];
+  // The city decides only whether *any* data reaches here. What it cannot decide is how good
+  // the data is, because a region's centres do not stop at its border — see hard-filters.ts.
+  if (daycareCoverageOf(ctx.listing.city) === 'none') return null;
+
+  const nearby = ctx.geo.daycaresWithin(from, cfg.radiusM, cfg.ageGroup, {
+    acceptUnknownCapacity: true,
+  });
+  /**
+   * Discounted only if the credit actually rests on unpublished capacity.
+   *
+   * Keyed on the counted set rather than on the listing's region: a Mississauga address whose one
+   * centre in range is a Toronto row with a published toddler place has nothing uncertain about
+   * it, and halving its score — as keying on the region did — penalised it for its postcode.
+   */
+  const capacityPublished = nearby.every((n) => n.daycare.capacityKnown);
+  return {
+    nearby,
+    confidence: capacityPublished ? 1 : PRESENCE_ONLY_CONFIDENCE,
+    capacityPublished,
+  };
+}
+
+/** 1.0 at the same address, decaying linearly to 0 at the profile's radius. */
+export const daycareProximity: ScoreComponent = (ctx) => {
+  const cfg = daycareConfig(ctx);
+  const found = daycareLookup(ctx);
+  if (!cfg || !found) return null;
+
+  const nearest = found.nearby[0];
   if (!nearest) return 0;
-  return linearDecay(nearest.distanceM, 0, cfg.radiusM);
+  return found.confidence * linearDecay(nearest.distanceM, 0, cfg.radiusM);
 };
 
 /**
@@ -36,12 +109,10 @@ export const daycareProximity: ScoreComponent = (ctx) => {
  * daycare 200 m away is not a guaranteed place; four within walking distance is.
  */
 export const daycareRedundancy: ScoreComponent = (ctx) => {
-  const from = origin(ctx);
-  const cfg = daycareConfig(ctx);
-  if (!from || !cfg) return null;
+  const found = daycareLookup(ctx);
+  if (!found) return null;
 
-  const count = ctx.geo.daycaresWithin(from, cfg.radiusM, cfg.ageGroup).length;
-  return clamp01(count / DAYCARE_REDUNDANCY_TARGET);
+  return found.confidence * clamp01(found.nearby.length / DAYCARE_REDUNDANCY_TARGET);
 };
 
 /**
@@ -50,11 +121,21 @@ export const daycareRedundancy: ScoreComponent = (ctx) => {
  * CAD 800-1200/month difference — larger than the gap between two listings in this band.
  */
 export const daycareAffordability: ScoreComponent = (ctx) => {
-  const from = origin(ctx);
-  const cfg = daycareConfig(ctx);
-  if (!from || !cfg) return null;
+  const found = daycareLookup(ctx);
+  if (!found) return null;
 
-  const nearby = ctx.geo.daycaresWithin(from, cfg.radiusM, cfg.ageGroup);
+  /**
+   * Unlike proximity, this one cannot be discounted — it has to abstain.
+   *
+   * A haircut works where the underlying measurement is real and its *relevance* is uncertain:
+   * the distance to a Peel centre is a true distance. Here the measurement itself is missing.
+   * Neither Peel nor Waterloo publishes CWELCC, so `cwelcc` is false for every row of those
+   * regions — false meaning "unstated", not "does not participate". Scoring that would report
+   * the whole 905 as having no $10/day childcare, which is not something anyone measured.
+   */
+  if (!found.capacityPublished) return null;
+
+  const nearby = found.nearby;
   if (nearby.length === 0) return 0;
 
   const cwelccCount = nearby.filter((n) => n.daycare.cwelcc).length;

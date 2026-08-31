@@ -68,6 +68,12 @@ export class CapreitSource implements BuildingListingSource {
    * costs a request per fifty buildings — and the `<lastmod>` that decides which buildings are
    * worth opening arrives in the same response.
    */
+  /**
+   * One target, so CAPREIT never rotates: the sitemap is national and costs a single request, so
+   * every city is covered on every cycle. Extra cities are a parse-time slug, not a extra fetch.
+   */
+  readonly searchTargets = [{ key: 'all', label: 'national sitemap' }] as const;
+
   async fetchBuildingPage(page: number): Promise<BuildingPage> {
     if (page > 1) return { buildings: [], unparsable: [], pagination: { offset: 0, limit: 0, totalCount: 0 } };
 

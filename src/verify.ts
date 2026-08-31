@@ -30,6 +30,7 @@ async function loadGeo(db: Database): Promise<GeoIndex> {
     schoolageSpace: x.schoolageSpace,
     subsidy: x.subsidy,
     cwelcc: x.cwelcc,
+    capacityKnown: x.capacityKnown,
   }));
   const stationPoints: TransitPoint[] = s.map((x) => ({
     id: x.id,
@@ -44,9 +45,9 @@ async function loadGeo(db: Database): Promise<GeoIndex> {
 }
 
 /** Yonge & Eglinton — Line 1 / Line 5 interchange, dense childcare. */
-const YONGE_EGLINTON = { lat: 43.7055, lng: -79.3982 };
+const YONGE_EGLINTON = { lat: 43.7055, lng: -79.3982, city: 'Toronto' };
 /** Keelesdale — a new Line 5 stop, the corridor this profile is aimed at. */
-const KEELESDALE = { lat: 43.6889, lng: -79.4795 };
+const KEELESDALE = { lat: 43.6889, lng: -79.4795, city: 'Toronto' };
 
 const AMENITIES = { hasLocker: true, inSuiteLaundry: true, buildingBuiltBefore2018: true };
 const THREE_BED = { beds: 3, dens: 0 };
@@ -153,6 +154,40 @@ async function main(): Promise<void> {
       `hard filters: 3BR=${threeBed.decision}  2BR+den=${twoPlusDen.decision}  ` +
         `2BR=${plainTwo.decision}  1BR+den=${oneBed.decision} (${oneBed.rejections[0]?.reason})`,
     );
+    /**
+     * Regional coverage, against the seeded data rather than a fixture.
+     *
+     * The unit tests prove the rule; this proves the *data* behind it — that Peel and Waterloo
+     * rows actually arrived, carry no capacity, and therefore produce a review instead of the
+     * rejection every 905 listing would have got before.
+     */
+    const coverageProbes: { label: string; place: { city: string; lat: number; lng: number }; expect: string }[] = [
+      { label: 'Toronto (Yonge & Eglinton)', place: { city: 'Toronto', lat: 43.7055, lng: -79.3982 }, expect: 'pass' },
+      { label: 'Mississauga (Square One)', place: { city: 'Mississauga', lat: 43.5890, lng: -79.6441 }, expect: 'review' },
+      { label: 'Cambridge (Galt)', place: { city: 'Cambridge', lat: 43.3601, lng: -80.3127 }, expect: 'review' },
+      { label: 'Lake Ontario (nothing near)', place: { city: 'Mississauga', lat: 43.45, lng: -79.55 }, expect: 'reject' },
+    ];
+
+    console.log('\nregional childcare coverage:');
+    const coverageProblems: string[] = [];
+    for (const probe of coverageProbes) {
+      const verdict = applyHardFilters({ ...base, beds: 3, dens: 0, ...probe.place }, sister, geo);
+      const why =
+        verdict.decision === 'review'
+          ? (verdict.reviews.find((r) => r.field === 'minDaycaresWithin')?.reason ?? '')
+          : (verdict.rejections.find((r) => r.reason === 'daycare_coverage')
+              ? 'no licensed centre in range'
+              : '');
+      console.log(`  ${probe.label.padEnd(28)} ${verdict.decision.padEnd(7)} ${why}`);
+      if (verdict.decision !== probe.expect) {
+        coverageProblems.push(`${probe.label}: expected ${probe.expect}, got ${verdict.decision}`);
+      }
+    }
+    if (coverageProblems.length > 0) {
+      throw new Error(`regional coverage is wrong:\n  ${coverageProblems.join('\n  ')}`);
+    }
+    console.log('');
+
     if (
       threeBed.decision !== 'pass' ||
       twoPlusDen.decision !== 'pass' ||

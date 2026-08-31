@@ -289,6 +289,7 @@ export class ListingsRepository {
           url: b.url,
           name: b.name,
           address: b.address,
+          city: b.city,
           lat: b.lat,
           lng: b.lng,
           floorplanCount: b.floorplanCount,
@@ -301,6 +302,7 @@ export class ListingsRepository {
           url: sql`excluded.url`,
           name: sql`excluded.name`,
           address: sql`excluded.address`,
+          city: sql`excluded.city`,
           lat: sql`excluded.lat`,
           lng: sql`excluded.lng`,
           floorplanCount: sql`excluded.floorplan_count`,
@@ -415,6 +417,28 @@ export class ListingsRepository {
   //
   // The pipeline used to keep only the last report, in memory, in one slot shared by two cycles.
   // These are what make "which runs worked, and which failed" answerable after a redeploy.
+
+  /**
+   * When each of a source's search targets was last visited, newest run per target.
+   *
+   * Drives the rotation. Reads history rather than keeping a counter in memory because the
+   * process restarts on every deploy — an in-memory cursor would reset to the first region and
+   * the others would starve, which is exactly the class of bug `cycle_runs` was introduced to
+   * end for the reports themselves.
+   */
+  async lastVisitedByTarget(source: string): Promise<Map<string, Date>> {
+    const rows = await this.db
+      .select({ target: cycleRuns.target, startedAt: cycleRuns.startedAt })
+      .from(cycleRuns)
+      .where(and(eq(cycleRuns.source, source), isNotNull(cycleRuns.target)))
+      .orderBy(desc(cycleRuns.startedAt));
+
+    const out = new Map<string, Date>();
+    for (const row of rows) {
+      if (row.target !== null && !out.has(row.target)) out.set(row.target, row.startedAt);
+    }
+    return out;
+  }
 
   async recordCycleRun(row: typeof cycleRuns.$inferInsert): Promise<void> {
     await this.db.insert(cycleRuns).values(row);

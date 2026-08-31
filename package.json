@@ -26,7 +26,8 @@
     "typecheck": "tsc --noEmit",
     "cycle:buildings": "pnpm build && node dist/run-cycle.js --buildings",
     "probe": "pnpm build && node dist/probe-sources.js",
-    "probe:dry": "pnpm build && node dist/probe-sources.js --dry-run"
+    "probe:dry": "pnpm build && node dist/probe-sources.js --dry-run",
+    "db:reset": "tsx src/db/reset-operational.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

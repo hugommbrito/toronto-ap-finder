@@ -112,8 +112,11 @@ export async function fetchDaycares(contactEmail?: string): Promise<SeedDaycare[
     }
 
     out.push({
-      id: (r.LOC_ID ?? '').trim(),
+      id: `toronto:${(r.LOC_ID ?? '').trim()}`,
       name: (r.LOC_NAME ?? '').trim(),
+      region: 'toronto',
+      // The whole reason Toronto is the `full` coverage region: TGSPACE and friends are real.
+      capacityKnown: true,
       auspice: (r.AUSPICE ?? '').trim() || null,
       address: (r.ADDRESS ?? '').trim() || null,
       postalCode: (r.PCODE ?? '').trim() || null,

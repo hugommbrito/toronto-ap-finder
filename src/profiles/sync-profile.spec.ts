@@ -33,7 +33,11 @@ describe('planProfileSync', () => {
   it('pushes a conflicting key only when it is named', () => {
     const plan = planProfileSync(code, storedBeforeAreas(), ['hard.cities']);
     const merged = applyPlan(storedBeforeAreas(), plan);
-    expect(merged.hard.cities).toEqual(['Toronto', 'North York', 'Etobicoke']);
+    // Compared against the code's own value rather than a copy of it: what this asserts is
+    // "the named key takes the code's side", which is true whatever the allowlist happens to
+    // be. Spelling the cities out here made the test fail when the 905 was added, for a
+    // change that was nothing to do with syncing.
+    expect(merged.hard.cities).toEqual(code.hard.cities);
     // Naming one key must not drag the others along.
     expect(merged.notify.minScore).toBe(72);
   });

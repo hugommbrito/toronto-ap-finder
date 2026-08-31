@@ -9,8 +9,16 @@ import { buildFingerprint, normalizeAddress } from '@/geo/address';
  * a bare street line, inherits the building's address for every floorplan, and has no den
  * field anywhere.
  */
-const fp = (address: string | null, beds: number | null, dens: number, rentBase: number, fallback: string) =>
-  buildFingerprint({ address, beds, dens, rentBase, fallback });
+const fp = (
+  address: string | null,
+  beds: number | null,
+  dens: number,
+  rentBase: number,
+  fallback: string,
+  // Defaulted because these cases are all about *address formatting* across sources, and both
+  // adapters do carry a city field regardless of whether they inline it into the address.
+  city: string | null = 'Toronto',
+) => buildFingerprint({ address, city, beds, dens, rentBase, fallback });
 
 describe('cross-source dedup', () => {
   it('matches the same unit across the two sources despite different address formats', () => {
@@ -71,5 +79,43 @@ describe('cross-source dedup', () => {
     for (const variant of ['2770 Jane St', '2770 Jane St.', '2770 jane street', 'Unit 4, 2770 Jane Street']) {
       expect(normalizeAddress(variant)).toBe(canonical);
     }
+  });
+});
+
+/**
+ * The 905 expansion's sharpest hazard, pinned here because nothing about it looks like a bug.
+ *
+ * `normalizeAddress` discards the city deliberately, so before the city joined the fingerprint
+ * these two hashed identically. `notifications` is uniquely indexed on
+ * (profile_id, fingerprint), so the consequence was not a mis-grouped pair — it was the second
+ * city's listing never being sent, with a clean log.
+ */
+describe('cross-city collisions', () => {
+  it('keeps the same street in two cities apart', () => {
+    const toronto = fp('100 Main Street', 2, 0, 2500, 'kijiji:1', 'Toronto');
+    const mississauga = fp('100 Main Street', 2, 0, 2500, 'kijiji:2', 'Mississauga');
+    const cambridge = fp('100 Main Street', 2, 0, 2500, 'kijiji:3', 'Cambridge');
+    expect(new Set([toronto, mississauga, cambridge]).size).toBe(3);
+  });
+
+  /** Street names that actually repeat across Ontario municipalities. */
+  it.each(['King Street West', 'Queen Street', 'Victoria Street', 'Main Street North'])(
+    'separates %s across cities',
+    (street) => {
+      expect(fp(`50 ${street}`, 3, 0, 2900, 'a', 'Mississauga')).not.toBe(
+        fp(`50 ${street}`, 3, 0, 2900, 'b', 'Cambridge'),
+      );
+    },
+  );
+
+  /**
+   * And the flip side: amalgamation must keep working. A Kijiji ad labelled "North York" and a
+   * CAPREIT building labelled "Toronto" at the same address are the same unit, and grouping
+   * them is the entire point of canonicalising rather than using the raw label.
+   */
+  it('still groups an amalgamated label with Toronto', () => {
+    expect(fp('2770 Jane Street', 3, 0, 2750, 'a', 'North York')).toBe(
+      fp('2770 Jane St', 3, 0, 2750, 'b', 'Toronto'),
+    );
   });
 });

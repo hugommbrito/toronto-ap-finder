@@ -1,6 +1,6 @@
 import type { TriageListing } from '@/listings/listing.types';
 import { toSearchableText } from '@/extraction/normalize';
-import type { BuildingEntry, BuildingPage, UnparsableListing } from '../source.interface';
+import type { BuildingEntry, BuildingPage, SearchTarget, UnparsableListing } from '../source.interface';
 
 export class ZumperParseError extends Error {
   constructor(message: string) {
@@ -225,6 +225,19 @@ function bathrooms(unit: Record<string, unknown>): number | null {
   const half = num(unit.half_bathrooms) ?? 0;
   return full + half * 0.5;
 }
+
+/**
+ * Zumper's targets are plain city slugs, so unlike Kijiji these are genuinely municipal — a
+ * `cambridge-on` search returns Cambridge and not the whole region.
+ *
+ * Path-only, because robots.txt disallows the `?loc=`, `?box=` and `?s=` query filters; only
+ * `?page=` is permitted. All three slugs were confirmed to resolve.
+ */
+export const ZUMPER_TARGETS: readonly (SearchTarget & { citySlug: string })[] = [
+  { key: 'toronto', label: 'Toronto', citySlug: 'toronto-on' },
+  { key: 'peel', label: 'Mississauga', citySlug: 'mississauga-on' },
+  { key: 'waterloo', label: 'Cambridge', citySlug: 'cambridge-on' },
+];
 
 export function buildSearchUrl(page: number, citySlug = 'toronto-on'): string {
   const path = `${BASE}/apartments-for-rent/${citySlug}`;

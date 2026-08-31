@@ -19,7 +19,22 @@ export interface NotificationPayload {
   reachableLines: ReachableLine[];
   /** How far out reachableLines was measured — the profile's transit decay distance. */
   transitRadiusM: number;
-  daycaresNearby: { total: number; cwelcc: number; radiusM: number };
+  /**
+   * `coverage` decides what `total` is allowed to claim, and all three cases read differently.
+   *
+   * - `full` — Toronto. `total` is centres with a confirmed toddler place; `cwelcc` is real.
+   * - `presenceOnly` — Peel, Waterloo. `total` is licensed centres, age bands unpublished, and
+   *   `cwelcc` is unknown rather than zero.
+   * - `none` — no dataset reaches this area, so `total` is 0 because nothing was searched. This
+   *   is the case that must never be printed as "0 daycares nearby": that would state a result
+   *   nobody measured, which is the whole failure the coverage work exists to prevent.
+   */
+  daycaresNearby: {
+    total: number;
+    cwelcc: number;
+    radiusM: number;
+    coverage: 'full' | 'presenceOnly' | 'none';
+  };
   /** The one she would actually walk to. Named, because "3 nearby" is not an address. */
   nearestDaycare: { name: string; distanceM: number; cwelcc: boolean; lat: number; lng: number } | null;
   /**

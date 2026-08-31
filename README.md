@@ -15,8 +15,8 @@ cp .env.example .env          # then fill in SCRAPER_CONTACT_EMAIL
 pnpm install
 docker compose up -d          # PostGIS on :5433
 pnpm db:migrate
-pnpm seed                     # ~1,090 daycares, 139 stations, 1 profile
-pnpm test                     # 430 tests (16 need a database, skipped without one)
+pnpm seed                     # ~1,960 daycares, 158 stations, 1 profile
+pnpm test                     # 464 tests (16 need a database, skipped without one)
 pnpm verify                   # acceptance checks against the real database
 pnpm probe                    # measures what each source does when we knock
 pnpm cycle:dry                # one full cycle, scores everything, sends nothing
@@ -30,8 +30,14 @@ profile makes of everything already collected. It touches no source, so a rate-l
 Kijiji never blocks scoring.
 
 `pnpm seed` reuses the committed files under `data/seed/`. Pass `--refresh`
-(`pnpm seed:refresh`) to re-download from the City of Toronto and Overpass — the diff on
-those files is the review surface for upstream data changes.
+(`pnpm seed:refresh`) to re-download from the City of Toronto, Peel, Waterloo and Overpass —
+the diff on those files is the review surface for upstream data changes. Childcare is one file
+per region so that refreshing one portal is a diff against that region alone.
+
+A cached file written before a row shape changed is detected and refetched rather than used.
+These files hold already-normalised rows, so the mapping that produces them does not re-run on
+a cache hit — which is how namespacing the daycare ids silently inserted a second copy of all
+1,090 Toronto centres the first time.
 
 Re-seeding refreshes only a profile's label and its Telegram chat id: filters and weights
 are meant to be tuned in the database, and silently reverting that tuning would be worse
@@ -167,6 +173,11 @@ bounding boxes. The label is still checked first — it is free, and it is the o
 listing without coordinates has. Brampton needs no geometry at all: it is its own
 municipality, so its own name identifies it.
 
+Brampton stopped being belt-and-braces when the 905 was added. Kijiji's regions are not
+municipal: the target for Mississauga is `mississauga-peel-region`, which covers all of Peel
+and returns Brampton by the hundred. Before, this entry excluded something the allowlist
+already excluded; now it is the only thing filtering it out.
+
 A listing whose area **cannot** be determined — no coordinates, and a label that says only
 Toronto — goes to `needs_review`, never to `pass`. The same is true if the boundary file
 goes missing: `pnpm verify` checks two known addresses inside Scarborough and East York for
@@ -248,17 +259,90 @@ Scoring maths runs in TypeScript over an in-memory snapshot of the seeded geogra
 tested without a database. PostGIS is enabled with generated `geography` columns and GIST
 indexes for ad-hoc calibration queries, not for the hot path.
 
+### Where the search actually looks
+
+`hard.cities` is an **accept filter over what already arrived**, not a query. Adding a city to
+it widens nothing on its own — what gets fetched is the per-source `searchTargets`
+(`src/sources/source.interface.ts`).
+
+| target | Kijiji | Zumper | CAPREIT |
+| --- | --- | --- | --- |
+| `toronto` | `city-of-toronto` / `l1700273` | `toronto-on` | 44 buildings |
+| `peel` | `mississauga-peel-region` / `l1700276` | `mississauga-on` | 8 buildings |
+| `waterloo` | `kitchener-waterloo` / `l1700212` | `cambridge-on` | none |
+
+Kijiji's slug and numeric id travel together because they have to agree — the id used to be a
+parameter while the slug stayed hardcoded as `city-of-toronto`, so passing another id emitted a
+URL that resolved to the wrong place. Kijiji also has no Cambridge region at all, so Cambridge
+arrives inside Kitchener/Waterloo and `hard.cities` is what narrows it. These targets
+deliberately over-fetch, and the city allowlist is load-bearing rather than decorative.
+
+**One target per cycle, least recently visited first.** Kijiji's limit is a rolling budget
+rather than a gap between calls, so three regions at full depth would be ~75 requests in one
+run — about 19 minutes at a 12-18 s gap, which overruns `CYCLE_MIN_MS` and reproduces the burst
+that earned a 429 in the first place. Rotating keeps a cycle at its original ~25 requests and
+~6 minutes; each region comes round roughly every third cycle. A never-visited target sorts
+first, so a newly added region backfills before the established ones refresh. The choice is
+persisted in `cycle_runs.target` rather than held in memory, because the process restarts on
+every deploy.
+
+CAPREIT never rotates: its sitemap is national and costs one request, so extra cities are a
+parse-time slug rather than another fetch. The weekly probe also stays at one target per
+source — it measures anti-bot posture for a shape of path, which does not vary by city.
+
 ## Data sources
 
-- **Child care**: City of Toronto Open Data, *Licensed Child Care Centres*. Resolved through
-  `package_search` at seed time, never by a hardcoded UUID. Capacity is per age group;
+- **Child care, Toronto**: City of Toronto Open Data, *Licensed Child Care Centres*. Resolved
+  through `package_search` at seed time, never by a hardcoded UUID. Capacity is per age group;
   the `sister` profile counts only centres with toddler places (`TGSPACE > 0`), and scores
   CWELCC ($10/day) and municipal subsidy as their own component.
+- **Child care, Peel and Waterloo**: the regions' own ArcGIS portals (581 and 287 centres).
+  **Neither publishes capacity per age group**, and that single fact shapes the whole 905
+  expansion. There is no counterpart to `TGSPACE`, so "does this centre have toddler places?"
+  is unanswerable outside Toronto. Rows are seeded with `capacityKnown: false`, and
+  `src/geo/coverage.ts` turns that into a three-way verdict:
+
+  | coverage | region | zero centres nearby | one or more nearby |
+  | --- | --- | --- | --- |
+  | `full` | Toronto | **reject** | pass |
+  | `presenceOnly` | Peel, Waterloo | **reject** — absence is still a fact | **review** |
+  | `none` | anywhere else | **review** | **review** |
+
+  A review does not suppress a notification (`upsertMatch` runs before the `minScore` cut), so
+  these listings are still sent — with the childcare line reworded to say "licensed" rather
+  than "toddler" and to name the gap. Scoring pays presence-only childcare at half rate rather
+  than nulling it: a null drops out of the denominator and renormalises the score over bedrooms
+  and rent, which is exactly the axis where the 905 wins, so nulling would systematically
+  promote the listings we know least about.
+
+  Rejected as a shortcut: Ontario's province-wide *Licensed child care facilities* dataset. It
+  covers every municipality but is XLSX-only with no coordinates, no age bands and no CWELCC
+  flag, and there is no geocoder in this project. The County of Simcoe publishes nothing, which
+  is why Wasaga Beach is not searched.
 - **Transit**: Overpass (OpenStreetMap), `railway=station` with `station=subway` or
   `station=light_rail`. Toronto's 600-odd `railway=tram_stop` nodes are **streetcar** stops
   and are deliberately excluded — including them would put a "rapid transit stop" within
   400 m of nearly every downtown listing and flatten the component to a constant.
   The seed fails loudly if Line 5 (25 stations) or Line 6 (18) come back thin.
+
+  The bounding box covers Toronto, Peel and Waterloo, which is all transit needed from the 905
+  expansion — once the box covers a region, a zero is a **true statement** ("no subway or LRT
+  within walking distance") rather than a hole in the data. That is why transit needs no
+  coverage concept while childcare does: OSM covers every region uniformly, so absence is
+  observable there. Waterloo's ION is included; Mississauga genuinely has neither, and the
+  nearest ION stop to Cambridge is Fairway, some 13 km away.
+
+  **GO Transit is deliberately excluded**, for the same reason as the streetcars: off-peak
+  headways are not rapid transit, and folding in Toronto's many GO stations would re-calibrate
+  the component for every existing listing. Buses were measured and rejected too — 88% of
+  sampled points already sit inside the 400 m that earns full credit (median 180 m), so a
+  bus-stop-distance component is very nearly a constant, and OSM carries `route_ref` on only 6%
+  of stops so counting routes yields zeros where there is service. Doing it properly means GTFS
+  frequency data, which is its own project.
+
+  Line labels are matched to stations by name **and position**. ION has a "Queen" and a
+  "Victoria Park", and so do Line 1 and Line 2; matching on name alone labelled all four with
+  both networks, and the line name goes straight into the notification.
 
   Notifications report reachable **lines**, not station counts (`reachableLines` in
   `src/scoring/context.ts`). Daycare redundancy matters because of waiting lists; nobody
@@ -277,6 +361,8 @@ require attribution:
 
 - **`daycares.json`** — *Licensed Child Care Centres*, City of Toronto Open Data, used under
   the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/).
+- **`daycares-peel.json`** — *Child Care Centres*, Region of Peel Open Data.
+- **`daycares-waterloo.json`** — *Child Care Centres*, Region of Waterloo Open Data.
 - **`municipal-boundaries.json`** — *Former Municipality Boundaries*, City of Toronto Open
   Data, used under the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/).
   Simplified to a 25 m tolerance, which is far below anything that can change an answer:
@@ -504,6 +590,68 @@ attempts, exactly when something had gone wrong enough to cause one.
 This route is also the trip-wire for the collector contingency: moving the fetcher onto a
 residential connection is worth doing when, and only when, collection from the cloud starts
 failing. This is where that becomes visible.
+
+### Changing who gets notified
+
+Recipients are deployment configuration, not a search preference, so they live in the
+environment and a plain re-seed pushes them into the profile:
+
+```bash
+# .env locally, or Variables on Railway — comma-separated
+TELEGRAM_CHAT_IDS=<existing ids>,<new id>
+
+pnpm seed                      # locally
+node dist/seed/index.js        # on the deployment: no pnpm, no tsx, no devDependencies
+```
+
+A plain re-seed updates **only** the label and `telegramChatIds`, through
+`jsonb_set(profiles.notify, '{telegramChatIds}', …)`. Tuned values in the same jsonb —
+`minScore`, `quietHours`, the weights — survive. **Do not use `--force-profiles` for this**: it
+overwrites `hard`, `soft` and `notify` wholesale and reverts every calibrated number to
+whatever the code last said.
+
+A new recipient has to message the bot first — Telegram will not let a bot open a
+conversation — and then their id is in `getUpdates`:
+
+```bash
+curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates" \
+  | grep -o '"chat":{"id":[0-9-]*'
+```
+
+Note that boot-time seeding will not do this for you: `needsSeeding` only fires when a daycare
+region is missing, so on an already-seeded database the env change alone changes nothing until
+the seed is run.
+
+### Emptying the operational tables
+
+```bash
+pnpm db:reset                                   # dry run — counts only, changes nothing
+pnpm db:reset -- --apply
+node dist/db/reset-operational.js --apply       # on the deployment, which has no psql
+```
+
+Dry run by default, because it runs against production. This exists as a script rather than a
+documented `TRUNCATE` for one reason: the runtime image has no `psql`, so the only way to run
+the statement by hand is to type it into a production console, one table name away from
+deleting 1,090 daycares that cost real network calls to collect.
+
+| | Tables |
+|---|---|
+| **Emptied** | `listings`, `matches`, `notifications`, `rejection_log`, `needs_review`, `listing_verifications`, `cycle_runs` |
+| **Preserved** | `daycares`, `transit_stations`, `rentsafe_buildings`, `geocode_cache`, `profiles` |
+| **Only when named** | `source_buildings` (`--include-buildings`), `source_policy` (`--include-policy`) |
+
+The script refuses to run against a schema it cannot fully account for: a table added later and
+left out of the classification raises an error naming it, rather than being silently spared or
+silently emptied. That refusal is the reason this is a script.
+
+The two opt-in tables each cost something specific. Clearing `source_buildings` discards the
+Zumper watermark and re-opens all 229 Toronto buildings, roughly six hours of cycles. Clearing
+`source_policy` un-pauses a source that a 429 deliberately stopped.
+
+Two consequences of a reset worth knowing before running it: an empty `notifications` means
+everything currently eligible is sent again, and an empty `listing_verifications` means the
+model re-reads every advertisement that reaches the top — real API spend, not just time.
 
 ## Sources
 

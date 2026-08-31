@@ -6,13 +6,17 @@ import { loadEnv } from '@/config/env';
 import { createDb, type Database } from '@/db/client';
 import { daycares, profiles, rentsafeBuildings, transitStations } from '@/db/schema';
 import { fetchDaycares, type SeedDaycare } from './daycares';
+import { fetchPeelDaycares, fetchWaterlooDaycares } from './daycares-regional';
 import { fetchMunicipalBoundaries, serializeBoundaries } from './boundaries';
 import { buildTransitSeed } from './transit';
 import { fetchRentSafeBuildings, type SeedRentSafeBuilding } from './rentsafe';
 import type { SeedStation } from './future-stations';
+import { SEEDED_REGIONS } from '@/geo/coverage';
 import { buildSisterProfile } from './sister-profile';
 
 const DAYCARE_SEED_PATH = resolve('data/seed/daycares.json');
+const PEEL_DAYCARE_SEED_PATH = resolve('data/seed/daycares-peel.json');
+const WATERLOO_DAYCARE_SEED_PATH = resolve('data/seed/daycares-waterloo.json');
 const TRANSIT_SEED_PATH = resolve('data/seed/transit-stations.json');
 const RENTSAFE_SEED_PATH = resolve('data/seed/rentsafe-buildings.json');
 const BOUNDARY_SEED_PATH = resolve('data/seed/municipal-boundaries.json');
@@ -27,11 +31,24 @@ async function loadOrFetch<T>(
   refresh: boolean,
   fetcher: () => Promise<T[]>,
   serialize: (rows: T[]) => string = (rows) => `${JSON.stringify(rows, null, 2)}\n`,
+  /**
+   * Rejects a cached file written before a shape change, so it is refetched instead of used.
+   *
+   * Learned the hard way. These files hold already-normalised rows, so the mapping that builds
+   * them never re-runs on a cache hit — which means a change to the row shape leaves every
+   * existing checkout with a file the new code misreads. When daycare ids became namespaced,
+   * the stale file still held bare ones, the migration had already renamed the rows in place,
+   * and the upsert cheerfully inserted a second copy of all 1,090 centres. Nothing failed; the
+   * count simply doubled.
+   */
+  isUsable: (rows: T[]) => boolean = () => true,
 ): Promise<T[]> {
   if (!refresh) {
     try {
       const cached = JSON.parse(await readFile(path, 'utf8')) as T[];
-      if (Array.isArray(cached) && cached.length > 0) {
+      if (Array.isArray(cached) && cached.length > 0 && !isUsable(cached)) {
+        console.log(`  ${path} predates the current row shape — refetching`);
+      } else if (Array.isArray(cached) && cached.length > 0) {
         console.log(`  using cached ${path} (${cached.length} records) — pass --refresh to re-download`);
         return cached;
       }
@@ -47,7 +64,69 @@ async function loadOrFetch<T>(
   return fetched;
 }
 
+/**
+ * Chunked, and it has to be.
+ *
+ * This was one statement while the only source was Toronto: ~1,090 rows times 23 columns is
+ * about 25,000 bind parameters, comfortably under the 65,535 a single Postgres statement
+ * allows. Adding Peel (581) and Waterloo (287) pushes it past that ceiling, and the failure
+ * would arrive as a bind-parameter error in the middle of a seed rather than as anything
+ * legible. 500 is the chunk `seedRentSafe` already uses for the same reason.
+ */
+const DAYCARE_CHUNK = 500;
+
+/**
+ * Every row carries a region-prefixed id and a region. Both arrived together, so either one
+ * being absent means the file was written by older code.
+ */
+const isNamespaced = (rows: SeedDaycare[]): boolean =>
+  rows.every((r) => typeof r.region === 'string' && r.region.length > 0 && r.id.startsWith(`${r.region}:`));
+
+/**
+ * The primary key is the only thing keeping three datasets from overwriting each other.
+ *
+ * Worth a loud failure rather than trust: the seed upserts, so a collision does not error — it
+ * silently keeps whichever row came last and the count still looks plausible. Peel already
+ * reuses its own `LM_ID` across different locations (see daycares-regional.ts), so this is a
+ * live hazard and not a hypothetical one.
+ */
+function dedupeDaycares(rows: SeedDaycare[]): SeedDaycare[] {
+  const seen = new Map<string, SeedDaycare>();
+  const out: SeedDaycare[] = [];
+
+  for (const row of rows) {
+    const previous = seen.get(row.id);
+    if (previous === undefined) {
+      seen.set(row.id, row);
+      out.push(row);
+      continue;
+    }
+    /**
+     * A byte-identical repeat is a duplicated row upstream, not a key collision.
+     *
+     * Throwing on it would be a boot failure — `runSeed` runs inside `prepareDatabase`, before
+     * the port opens — over something an upsert would have absorbed without noticing. A genuine
+     * clash, two different centres claiming one key, still fails loudly: that one silently
+     * discards a centre and leaves the count looking plausible.
+     */
+    if (JSON.stringify(previous) === JSON.stringify(row)) continue;
+    throw new Error(
+      `Duplicate daycare id "${row.id}": "${previous.name}" and "${row.name}" differ. ` +
+        'Two regions, or one region twice, are claiming the same primary key.',
+    );
+  }
+
+  return out;
+}
+
 async function seedDaycares(db: Database, rows: SeedDaycare[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += DAYCARE_CHUNK) {
+    await insertDaycareChunk(db, rows.slice(i, i + DAYCARE_CHUNK));
+  }
+}
+
+async function insertDaycareChunk(db: Database, rows: SeedDaycare[]): Promise<void> {
+  if (rows.length === 0) return;
   await db
     .insert(daycares)
     .values(rows)
@@ -55,6 +134,8 @@ async function seedDaycares(db: Database, rows: SeedDaycare[]): Promise<void> {
       target: daycares.id,
       set: {
         name: sql`excluded.name`,
+        region: sql`excluded.region`,
+        capacityKnown: sql`excluded.capacity_known`,
         auspice: sql`excluded.auspice`,
         address: sql`excluded.address`,
         postalCode: sql`excluded.postal_code`,
@@ -177,6 +258,22 @@ async function report(db: Database): Promise<void> {
     })
     .from(daycares);
 
+  /**
+   * Grouped by region, because one total would hide the thing most worth seeing: whether the
+   * presence-only regions actually arrived, and that they carry no capacity. A Peel row with
+   * `capacityKnown` true would mean the normaliser had started lying.
+   */
+  const byRegion = await db
+    .select({
+      region: daycares.region,
+      total: sql<number>`count(*)::int`,
+      capacityKnown: sql<number>`count(*) filter (where ${daycares.capacityKnown})::int`,
+      toddler: sql<number>`count(*) filter (where ${daycares.toddlerSpace} > 0)::int`,
+    })
+    .from(daycares)
+    .groupBy(daycares.region)
+    .orderBy(daycares.region);
+
   const lines = await db
     .select({
       line: transitStations.line,
@@ -204,6 +301,10 @@ async function report(db: Database): Promise<void> {
 
   console.log('\n--- seed report ---');
   console.log(`daycares:            ${dc?.total ?? 0}`);
+  for (const r of byRegion) {
+    const coverage = r.capacityKnown === r.total ? 'capacity per age group' : 'presence only';
+    console.log(`  ${r.region.padEnd(18)} ${String(r.total).padStart(5)}  (${coverage}, toddler ${r.toddler})`);
+  }
   console.log(`  with toddler room: ${dc?.toddler ?? 0}`);
   console.log(`  CWELCC ($10/day):  ${dc?.cwelcc ?? 0}`);
   console.log(`  toddler + CWELCC:  ${dc?.toddlerCwelcc ?? 0}   <- the set that actually matters`);
@@ -260,8 +361,42 @@ export async function runSeed(db: Database, options: SeedOptions = {}): Promise<
     console.warn('warning: SCRAPER_CONTACT_EMAIL is unset; requests will go out without a contact address.');
   }
 
+  /**
+   * Three regions, three files, one table.
+   *
+   * Separate files rather than one merged `daycares.json` so that a refresh of one portal is a
+   * diff against that region alone — Toronto's file is 634 KB, and a merged one would make
+   * every re-seed an unreviewable churn. They are seeded together because coverage is a
+   * property of the region (geo/coverage.ts) and not of the storage.
+   */
   console.log('daycares (City of Toronto CKAN)...');
-  const daycareRows = await loadOrFetch(DAYCARE_SEED_PATH, refresh, () => fetchDaycares(env.SCRAPER_CONTACT_EMAIL));
+  const torontoDaycares = await loadOrFetch(
+    DAYCARE_SEED_PATH,
+    refresh,
+    () => fetchDaycares(env.SCRAPER_CONTACT_EMAIL),
+    undefined,
+    isNamespaced,
+  );
+
+  console.log('daycares (Region of Peel ArcGIS — presence only, no age-group capacity)...');
+  const peelDaycares = await loadOrFetch(
+    PEEL_DAYCARE_SEED_PATH,
+    refresh,
+    () => fetchPeelDaycares(env.SCRAPER_CONTACT_EMAIL),
+    undefined,
+    isNamespaced,
+  );
+
+  console.log('daycares (Region of Waterloo ArcGIS — presence only, no age-group capacity)...');
+  const waterlooDaycares = await loadOrFetch(
+    WATERLOO_DAYCARE_SEED_PATH,
+    refresh,
+    () => fetchWaterlooDaycares(env.SCRAPER_CONTACT_EMAIL),
+    undefined,
+    isNamespaced,
+  );
+
+  const daycareRows = dedupeDaycares([...torontoDaycares, ...peelDaycares, ...waterlooDaycares]);
   await seedDaycares(db, daycareRows);
 
   console.log('transit stations (Overpass + manual future lines)...');
@@ -302,9 +437,25 @@ export async function runSeed(db: Database, options: SeedOptions = {}): Promise<
 }
 
 /** True when the geography index has nothing in it — i.e. this database has never been seeded. */
+/**
+ * Whether the seeded geography still matches what the code claims coverage for.
+ *
+ * This was `count(*) === 0` — "has this database ever been seeded" — and that is not the same
+ * question, which is how adding two regions produced a deployment trap. An existing database has
+ * 1,089 Toronto rows, so boot skipped seeding entirely and Peel's 581 and Waterloo's 287 were
+ * never inserted. Meanwhile `geo/coverage.ts` is a static map and went on claiming Mississauga
+ * was `presenceOnly`, so the childcare filter counted zero centres and **rejected** every
+ * Mississauga and Cambridge listing — logging a data gap as a verdict about the place, which is
+ * the one failure that whole module exists to prevent. And there is no psql in the runtime image
+ * to fix it by hand.
+ *
+ * Asking per region closes the gap for good: a region added in code is a region the next boot
+ * backfills. `runSeed` upserts throughout, so re-running it costs nothing.
+ */
 export async function needsSeeding(db: Database): Promise<boolean> {
-  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(daycares);
-  return (row?.n ?? 0) === 0;
+  const rows = await db.select({ region: daycares.region }).from(daycares).groupBy(daycares.region);
+  const present = new Set(rows.map((r) => r.region));
+  return SEEDED_REGIONS.some((region) => !present.has(region.key));
 }
 
 async function main(): Promise<void> {

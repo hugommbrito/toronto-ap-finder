@@ -1,8 +1,15 @@
 import { fetchText } from '@/seed/http';
 import type { TriageListing } from '@/listings/listing.types';
-import type { ListingDetail, TriagePage, UnitListingSource } from '../source.interface';
+import type { ListingDetail, TriagePage, UnitListingSource, SearchTarget } from '../source.interface';
 import { RateLimiter } from '../rate-limiter';
-import { buildSearchUrl, extractNextData, parseDetailPage, parseSearchPage } from './kijiji.parser';
+import {
+  buildSearchUrl,
+  extractNextData,
+  parseDetailPage,
+  parseSearchPage,
+  KIJIJI_TARGETS,
+  type KijijiTarget,
+} from './kijiji.parser';
 
 /**
  * Kijiji I/O. All parsing lives in kijiji.parser.ts so that it stays testable without a
@@ -49,8 +56,10 @@ export class KijijiSource implements UnitListingSource {
     return this.limiter.resetIfCooledDown(cooldownMs);
   }
 
-  async fetchTriagePage(page: number): Promise<TriagePage> {
-    const url = buildSearchUrl(page);
+  readonly searchTargets = KIJIJI_TARGETS;
+
+  async fetchTriagePage(page: number, target: SearchTarget = KIJIJI_TARGETS[0]!): Promise<TriagePage> {
+    const url = buildSearchUrl(page, asKijijiTarget(target));
     const html = await this.limiter.run(() =>
       fetchText(url, { contactEmail: this.contactEmail, retries: 2 }),
     );
@@ -63,4 +72,20 @@ export class KijijiSource implements UnitListingSource {
     );
     return parseDetailPage(extractNextData(html));
   }
+}
+
+/**
+ * The pipeline hands back a plain `SearchTarget`, so the slug/id pair is recovered by key.
+ *
+ * Throws rather than silently falling back to Toronto: a target this source does not know is a
+ * wiring mistake, and quietly searching the wrong city would look like a quiet market.
+ */
+function asKijijiTarget(target: SearchTarget): KijijiTarget {
+  const found = KIJIJI_TARGETS.find((t) => t.key === target.key);
+  if (!found) {
+    throw new Error(
+      `kijiji has no search target "${target.key}"; known: ${KIJIJI_TARGETS.map((t) => t.key).join(', ')}`,
+    );
+  }
+  return found;
 }

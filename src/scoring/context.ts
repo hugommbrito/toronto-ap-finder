@@ -11,6 +11,15 @@ export interface DaycarePoint extends LatLng {
   schoolageSpace: number;
   subsidy: boolean;
   cwelcc: boolean;
+  /**
+   * Whether the capacity columns above were published at all.
+   *
+   * False for Peel and Waterloo rows, where every column is 0 because nobody publishes it.
+   * Carried per point rather than inferred from the listing's region because the two can
+   * differ: an address in Mississauga can have Toronto centres within walking distance, and
+   * those *do* have real capacity. See `daycaresWithin`.
+   */
+  capacityKnown: boolean;
 }
 
 export interface TransitPoint extends LatLng {
@@ -29,6 +38,12 @@ export interface ScorableListing {
   dens: number;
   lat: number | null;
   lng: number | null;
+  /**
+   * Read only to decide which region's data covers this address (geo/coverage.ts), never to
+   * score the place itself. A component has to know whether a zero means "we looked and there
+   * is nothing" or "nobody publishes this here".
+   */
+  city: string | null;
   hasLocker: boolean | null;
   inSuiteLaundry: boolean | null;
   buildingBuiltBefore2018: boolean | null;
@@ -44,6 +59,20 @@ const AGE_GROUP_COLUMN: Record<DaycareAgeGroup, keyof DaycarePoint> = {
 
 export function hasCapacityFor(daycare: DaycarePoint, ageGroup: DaycareAgeGroup): boolean {
   return (daycare[AGE_GROUP_COLUMN[ageGroup]] as number) > 0;
+}
+
+/**
+ * Whether a centre counts, once "we don't know" is allowed to count as a maybe.
+ *
+ * `acceptUnknownCapacity` is only ever set for a listing in a region that publishes no age
+ * bands (geo/coverage.ts). Note what it does *not* do: it does not stop applying the age group
+ * to centres that did publish one. Near the Etobicoke border a Mississauga address has Toronto
+ * centres in range, and those are still held to `TGSPACE > 0` — waiving the requirement for
+ * them would weaken the filter using another region's shortcoming as the excuse.
+ */
+function counts(daycare: DaycarePoint, ageGroup: DaycareAgeGroup, acceptUnknown: boolean): boolean {
+  if (daycare.capacityKnown) return hasCapacityFor(daycare, ageGroup);
+  return acceptUnknown;
 }
 
 export interface NearbyDaycare {
@@ -70,10 +99,16 @@ export class GeoIndex {
     private readonly stations: TransitPoint[],
   ) {}
 
-  daycaresWithin(origin: LatLng, radiusM: number, ageGroup: DaycareAgeGroup): NearbyDaycare[] {
+  daycaresWithin(
+    origin: LatLng,
+    radiusM: number,
+    ageGroup: DaycareAgeGroup,
+    opts: { acceptUnknownCapacity?: boolean } = {},
+  ): NearbyDaycare[] {
+    const acceptUnknown = opts.acceptUnknownCapacity === true;
     const out: NearbyDaycare[] = [];
     for (const daycare of this.daycares) {
-      if (!hasCapacityFor(daycare, ageGroup)) continue;
+      if (!counts(daycare, ageGroup, acceptUnknown)) continue;
       const distanceM = walkingMeters(origin, daycare);
       if (distanceM <= radiusM) out.push({ daycare, distanceM });
     }
