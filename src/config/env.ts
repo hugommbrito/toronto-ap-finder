@@ -35,6 +35,12 @@ const envSchema = z.object({
    * public exposure of the service.
    */
   OPERATIONS_TOKEN: optionalString,
+  /**
+   * Bearer token for the web UI and its /api routes. Unset closes them, as OPERATIONS_TOKEN
+   * does and for the same reason. A separate token, so that being able to read listings does not
+   * also mean being able to read the operations report — the two readers are not the same people.
+   */
+  UI_TOKEN: optionalString,
   TELEGRAM_BOT_TOKEN: optionalString,
   /**
    * Comma-separated Telegram chat ids, e.g. "100000001,100000002". Everyone listed gets

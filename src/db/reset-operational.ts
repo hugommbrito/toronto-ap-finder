@@ -29,6 +29,9 @@ export const OPERATIONAL = [
   'needs_review',
   'listing_verifications',
   'cycle_runs',
+  // Human decisions from the UI. Cascade-truncated with listings whatever this list says (the
+  // FK), so it cannot honestly be preserved — see 0013_listing_states.sql for the alternative.
+  'listing_states',
 ] as const;
 
 /**

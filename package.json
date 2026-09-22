@@ -27,7 +27,12 @@
     "cycle:buildings": "pnpm build && node dist/run-cycle.js --buildings",
     "probe": "pnpm build && node dist/probe-sources.js",
     "probe:dry": "pnpm build && node dist/probe-sources.js --dry-run",
-    "db:reset": "tsx src/db/reset-operational.ts"
+    "db:reset": "tsx src/db/reset-operational.ts",
+    "web:install": "pnpm --dir web install",
+    "web:dev": "pnpm --dir web dev",
+    "web:build": "pnpm --dir web build",
+    "web:test": "pnpm --dir web test",
+    "web:typecheck": "pnpm --dir web typecheck"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

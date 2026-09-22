@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { loadEnv } from '@/config/env';
 import { buildFingerprint } from '@/geo/address';
-import { daycareCoverageOf } from '@/geo/coverage';
+import { geoContextFor } from '@/geo/geo-context';
 import { GeoService } from '@/geo/geo.service';
 import { enrichFromText, layoutConflictOf } from '@/listings/enrich';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
@@ -13,7 +13,7 @@ import type { TenantProfile } from '@/profiles/profile.schema';
 import { ProfilesService } from '@/profiles/profiles.service';
 import { applyHardFilters, type HardFilterResult } from '@/scoring/hard-filters';
 import { scoreListing } from '@/scoring/scorer';
-import { reachableLines, type GeoIndex } from '@/scoring/context';
+import type { GeoIndex } from '@/scoring/context';
 import { SourceRegistry, newlyPaused } from '@/sources/source.registry';
 import { SourcePausedError } from '@/sources/rate-limiter';
 import { ListingVerifier, VERIFIER_MODEL, verdictSchema, type Verdict } from '@/verification/listing-verifier';
@@ -850,7 +850,7 @@ export class PipelineService {
         chatIds: profile.notify.telegramChatIds,
         score,
         includeMap: profile.notify.includeMap,
-        ...this.geoContext(scored, profile, geo),
+        ...geoContextFor(scored, profile, geo),
         unverified: verification.note
           ? [...reviews, { field: 'layout', reason: verification.note }]
           : reviews,
@@ -922,7 +922,7 @@ export class PipelineService {
           chatIds: profile.notify.telegramChatIds,
           score: finalScore,
           includeMap: profile.notify.includeMap,
-          ...this.geoContext(finalListing, profile, geo),
+          ...geoContextFor(finalListing, profile, geo),
           unverified: verification.note ? [{ field: 'layout', reason: verification.note }] : [],
         });
         if (messageId) {
@@ -932,86 +932,6 @@ export class PipelineService {
         }
       }
     }
-  }
-
-  private geoContext(
-    listing: TriageListing,
-    profile: TenantProfile,
-    geo: GeoIndex,
-  ): Pick<
-    Parameters<TelegramNotifier['send']>[0],
-    'reachableLines' | 'transitRadiusM' | 'daycaresNearby' | 'nearestDaycare' | 'mapStops'
-  > {
-    const cfg = profile.hard.minDaycaresWithin;
-    const radiusM = cfg?.radiusM ?? 800;
-    // Beyond the transit decay distance the score is zero anyway, so nothing further is
-    // "reachable" as far as this profile is concerned.
-    const transitRadiusM = profile.soft.transitWalkZeroM ?? profile.hard.maxTransitWalkM ?? 900;
-
-    if (listing.lat === null || listing.lng === null) {
-      return {
-        reachableLines: [],
-        transitRadiusM,
-        // Nothing was searched — there is no point to search from. Claiming 'full' here made the
-        // message print "0 toddler daycares within 800 m", which is a measurement nobody took.
-        daycaresNearby: { total: 0, cwelcc: 0, radiusM, coverage: 'none' },
-        nearestDaycare: null,
-        mapStops: [],
-      };
-    }
-    const point = { lat: listing.lat, lng: listing.lng };
-    /**
-     * Counted the same way the hard filter counted, or the message contradicts the decision.
-     *
-     * Strictly, a Mississauga listing has no centre with a *confirmed* toddler place, so the
-     * strict query returns zero — and a notification reading "0 toddler daycares within 800 m"
-     * on an ad that passed the childcare filter is worse than useless.
-     */
-    const reaches = daycareCoverageOf(listing.city) !== 'none';
-    // daycaresWithin already returns them sorted by distance, so the first is the closest.
-    const nearby =
-      cfg && reaches
-        ? geo.daycaresWithin(point, radiusM, cfg.ageGroup, { acceptUnknownCapacity: true })
-        : [];
-    /**
-     * Follows the centres counted, so the wording matches the verdict the filter reached.
-     * A Mississauga listing whose one centre is a published Toronto row gets Toronto's phrasing,
-     * because that is what was actually measured.
-     */
-    const coverage: 'full' | 'presenceOnly' | 'none' = !reaches
-      ? 'none'
-      : nearby.every((n) => n.daycare.capacityKnown)
-        ? 'full'
-        : 'presenceOnly';
-    const closest = nearby[0];
-    const lines = reachableLines(geo.stationsWithin(point, transitRadiusM, 'operational'));
-    // Nearest station first, then the closest daycares: with only three slots, the station is
-    // the one point the daycare count cannot stand in for.
-    const mapStops = [
-      ...lines.slice(0, 1).map((l) => ({ label: l.station, lat: l.lat, lng: l.lng })),
-      ...nearby.slice(0, 3).map((n) => ({ label: n.daycare.name, lat: n.daycare.lat, lng: n.daycare.lng })),
-    ];
-
-    return {
-      reachableLines: lines,
-      transitRadiusM,
-      mapStops,
-      daycaresNearby: {
-        total: nearby.length,
-        cwelcc: nearby.filter((n) => n.daycare.cwelcc).length,
-        radiusM,
-        coverage,
-      },
-      nearestDaycare: closest
-        ? {
-            name: closest.daycare.name,
-            distanceM: closest.distanceM,
-            cwelcc: closest.daycare.cwelcc,
-            lat: closest.daycare.lat,
-            lng: closest.daycare.lng,
-          }
-        : null,
-    };
   }
 }
 

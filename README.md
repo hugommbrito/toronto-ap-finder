@@ -23,6 +23,7 @@ pnpm cycle:dry                # one full cycle, scores everything, sends nothing
 pnpm cycle                    # one full cycle, sends what clears minScore
 pnpm cycle:stored             # re-score the corpus already collected, no network at all
 pnpm build && pnpm start:prod # health at http://localhost:3000/health
+pnpm web:install && pnpm web:build   # the page at http://localhost:3000/ — needs UI_TOKEN in .env
 ```
 
 `cycle:stored` is the calibration loop: change a weight, run it, and see what the current
@@ -488,13 +489,17 @@ railway init
 railway add --database postgres
 railway variables --set "TELEGRAM_BOT_TOKEN=..." \
                   --set "TELEGRAM_CHAT_IDS=100000001,100000002" \
-                  --set "SCRAPER_CONTACT_EMAIL=you@example.com"
+                  --set "SCRAPER_CONTACT_EMAIL=you@example.com" \
+                  --set "UI_TOKEN=..."
 railway up
 ```
 
 `DATABASE_URL` and `PORT` are injected by Railway. The Dockerfile is the build; boot runs
 migrations and, on an empty database, seeds geography and profiles from the committed files
 under `data/seed/` — so a cold start needs no external service.
+
+`UI_TOKEN` opens the page at `/`. Without it the page still loads and every call to `/api` answers
+`503` — see **Browsing what was found**.
 
 **PostGIS is optional and Railway's default Postgres does not have it.** Migration `0001`
 checks `pg_available_extensions` and skips the geography columns when it is absent, because
@@ -566,6 +571,56 @@ respecting it.
 
 Rentals.ca is deliberately not probed: it is a documented refusal, and re-requesting a site that
 has already answered is not a measurement worth taking.
+
+## Browsing what was found
+
+The Telegram message is the right shape for a decision and the wrong shape for a comparison. It
+shows one listing, once, only when it clears `minScore` — and then it scrolls away. Two questions it
+cannot answer: *what did the scorer make of the ones it did not send*, which is the whole of
+calibrating the weights (the comment on `minScore` in `sister-profile.ts` calls the number
+provisional until the distribution has been looked at, and there was nowhere to look); and *which
+of these have I already dealt with*, which until now lived in someone's head.
+
+The page at `/` answers both. It is the same card as the message — same parking wording, same
+three daycare sentences, same walking pace, and the same geography, produced by one function
+(`geoContextFor`, shared by the notifier and the API) so the two cannot disagree about one
+listing — laid out in Portuguese for the person doing the looking, with the score breakdown behind
+a toggle for the person doing the tuning. Every listing that ever received a score is there, not
+only the ones that were sent: the default filter is the profile's `minScore`, and a slider lowers
+it to see the near-misses. Each listing can be marked favourite, contacted or dismissed, with a
+note. Those decisions live in `listing_states`, keyed on (listing, profile) — the only table a
+person writes to, and the one table the pipeline never reads.
+
+```bash
+pnpm web:install && pnpm web:build   # once; produces web/dist, which the service serves at /
+UI_TOKEN=... pnpm start:dev          # API and page on :3000
+pnpm web:dev                         # optional: Vite on :5173 with hot reload, proxying /api
+```
+
+It needs `UI_TOKEN`. **Unset closes the API rather than opening it** (`503`) — the rule
+`OPERATIONS_TOKEN` already follows, for the same reason: the page lists addresses and prices. It is
+a separate token because the two readers are not the same people; being able to browse listings
+should not also mean being able to read the operations report. The page asks for the token once,
+keeps it in the browser, and sends it as a bearer on every call to `/api`.
+
+| Route | What it returns |
+|---|---|
+| `GET /api/profiles` | active profiles with their weights and bedroom tiers — never the chat ids |
+| `GET /api/listings?profile=` | the ranked feed; narrows by `minScore`, `maxRent`, `tier`, `city`, `area`, `source`, `status`, `includeDelisted`, `includeDismissed`; `sort`, `page`, `limit` |
+| `GET /api/listings/:id?profile=` | one listing with its body, the model's reading of it, the RentSafeTO record, the other portals carrying the same unit, and the points the map draws |
+| `GET /api/summary?profile=` | last cycle, paused sources, and the counts in the header |
+| `PUT /api/listings/:id/state?profile=` | `{ status?, note? }`, a partial update — writing a note never resets a favourite |
+| `GET /api/funnel?hours=` | the `/operations` report, for the funnel tab |
+
+Two things the page shows that are worth reading correctly. The score is the stored one, as of the
+last cycle that looked at the listing; change a weight and it moves only after `cycle:stored`. And
+“pontuado pela primeira vez em” means exactly that: the upsert that rewrites a score leaves its
+`created_at` alone, so the date is when the pair was first scored, not when it was last.
+
+The bundle is built in its own Docker stage and served by `express.static` beside the API, which
+only answers for files that exist — `/health` and `/api` fall through to their controllers
+untouched, and the page routes by hash so it never needs a fallback route that could swallow them.
+Without a build, `pnpm start:dev` is the API alone, and the log says so.
 
 ## Operations
 
@@ -645,7 +700,7 @@ deleting 1,090 daycares that cost real network calls to collect.
 
 | | Tables |
 |---|---|
-| **Emptied** | `listings`, `matches`, `notifications`, `rejection_log`, `needs_review`, `listing_verifications`, `cycle_runs` |
+| **Emptied** | `listings`, `matches`, `notifications`, `rejection_log`, `needs_review`, `listing_verifications`, `cycle_runs`, `listing_states` |
 | **Preserved** | `daycares`, `transit_stations`, `rentsafe_buildings`, `geocode_cache`, `profiles` |
 | **Only when named** | `source_buildings` (`--include-buildings`), `source_policy` (`--include-policy`) |
 
@@ -660,6 +715,12 @@ Zumper watermark and re-opens all 229 Toronto buildings, roughly six hours of cy
 Two consequences of a reset worth knowing before running it: an empty `notifications` means
 everything currently eligible is sent again, and an empty `listing_verifications` means the
 model re-reads every advertisement that reaches the top — real API spend, not just time.
+
+A third: an empty `listing_states` forgets every favourite, dismissal and note made in the browser. It
+is emptied whether or not it is listed, because it references `listings` and `TRUNCATE … CASCADE`
+follows the reference — which is why it is classified as emptied rather than pretended preserved. If
+those decisions ever have to survive a reset, the honest change is to key them on fingerprint with no
+foreign key, as `notifications` is; the comment on migration `0013` says so.
 
 ## Sources
 

@@ -7,3 +7,5 @@ test
 docs
 coverage
 *.tsbuildinfo
+web/node_modules
+web/dist
