@@ -1,5 +1,5 @@
-import { useCallback, type ReactElement, type ReactNode } from 'react';
-import type { FeedPage, ProfileSummary, Summary } from '@shared/api-types';
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import type { FeedPage, GeoOverview, MapSet, ProfileSummary, Summary } from '@shared/api-types';
 import type { ApiError } from './api/client';
 import { useApi } from './api/hooks';
 import { Login } from './auth/Login';
@@ -7,11 +7,14 @@ import { setToken, useToken } from './auth/token';
 import { FilterBar } from './components/FilterBar';
 import { Header } from './components/Header';
 import { ListingFeed } from './components/ListingFeed';
+import { ViewToggle } from './components/ViewToggle';
 import { ListingDetail } from './components/detail/ListingDetail';
+import { FeedMap } from './components/map/FeedMap';
+import { requestFocus } from './components/map/mapMemory';
 import { RejectionFunnel } from './components/ops/RejectionFunnel';
 import { useMediaQuery } from './lib/useMediaQuery';
 import { navigate, toHash, useHashRoute } from './routing/useHashRoute';
-import { feedQueryString, useFilters } from './state/useFilters';
+import { feedQueryString, mapQueryString, queryFromFilters, useFilters } from './state/useFilters';
 import { useProfile } from './state/useProfile';
 
 export function App(): ReactElement {
@@ -39,6 +42,9 @@ function Authed(): ReactElement {
  * One column on a phone, two panes from 1024px: the feed on the left, the open listing on the
  * right. On a phone an open listing replaces the feed and the back link restores it — the filters
  * survive because they live in the hash, not in this component.
+ *
+ * The left pane shows the filtered set as a list or as a map (`view` in the hash). Only the active
+ * one is fetched; the map's fixed layers are fetched the first time it opens and kept for the session.
  */
 function Shell({ profiles }: { profiles: ProfileSummary[] }): ReactElement {
   const [profileId, setProfileId] = useProfile(profiles);
@@ -46,28 +52,49 @@ function Shell({ profiles }: { profiles: ProfileSummary[] }): ReactElement {
   const { route, query } = useHashRoute();
   const [filters, updateFilters] = useFilters(query, route);
   const wide = useMediaQuery('(min-width: 1024px)');
+  const view = filters.view;
+  const browsing = profile !== undefined && route.name !== 'ops';
 
   const summary = useApi<Summary>(profile ? `/api/summary?profile=${encodeURIComponent(profile.id)}` : null);
-  const feedPath = profile && route.name !== 'ops' ? `/api/listings?${feedQueryString(profile.id, filters)}` : null;
-  const feed = useApi<FeedPage>(feedPath);
+  const feed = useApi<FeedPage>(browsing && view === 'list' ? `/api/listings?${feedQueryString(profile.id, filters)}` : null);
+  const mapSet = useApi<MapSet>(browsing && view === 'map' ? `/api/map?${mapQueryString(profile.id, filters)}` : null);
+
+  const [mapSeen, setMapSeen] = useState(view === 'map');
+  useEffect(() => {
+    if (view === 'map') setMapSeen(true);
+  }, [view]);
+  const overview = useApi<GeoOverview>(profile && mapSeen ? `/api/geo?profile=${encodeURIComponent(profile.id)}` : null);
 
   const reloadFeed = feed.reload;
+  const reloadMap = mapSet.reload;
   const reloadSummary = summary.reload;
   const onStateChanged = useCallback(() => {
     // A dismissed listing leaves the default feed and the header counts move; reload both rather
-    // than patching, because "what the feed contains" is the server's call.
+    // than patching, because "what the feed contains" is the server's call. Reloading the inactive
+    // view is a no-op.
     reloadFeed();
+    reloadMap();
     reloadSummary();
-  }, [reloadFeed, reloadSummary]);
+  }, [reloadFeed, reloadMap, reloadSummary]);
 
   if (!profile) return <Splash>Nenhum perfil ativo.</Splash>;
 
   const selectedId = route.name === 'listing' ? route.id : null;
   const showFeed = wide || selectedId === null;
   const showDetail = wide || selectedId !== null;
+  const active = view === 'map' ? mapSet.data : feed.data;
+
+  // The same filters, as the other view. `route` is kept so a listing open on the right stays open.
+  const mapQuery = queryFromFilters({ ...filters, view: 'map', page: 1 });
+  const mapHref = toHash(route, mapQuery);
+  const listHref = toHash(route, queryFromFilters({ ...filters, view: 'list', page: 1 }));
+  const onMap = (id: string): void => {
+    requestFocus(id);
+    navigate(route, mapQuery);
+  };
 
   return (
-    <div className="shell">
+    <div className={`shell${view === 'map' ? ' map-mode' : ''}`}>
       <Header
         profile={profile}
         profiles={profiles}
@@ -85,24 +112,42 @@ function Shell({ profiles }: { profiles: ProfileSummary[] }): ReactElement {
         <main className={`panes${selectedId !== null ? ' with-detail' : ''}`}>
           {showFeed && (
             <section className="pane pane-feed" aria-label="Anúncios">
+              <ViewToggle view={view} onChange={(v) => updateFilters({ view: v })} />
               <FilterBar
                 profile={profile}
                 filters={filters}
-                facets={feed.data?.facets ?? null}
-                total={feed.data?.total ?? null}
+                facets={active?.facets ?? null}
+                total={active?.total ?? null}
                 onChange={updateFilters}
               />
-              <ListingFeed
-                page={feed.data}
-                loading={feed.loading}
-                error={feed.error}
-                profile={profile}
-                selectedId={selectedId}
-                hrefFor={(id) => toHash({ name: 'listing', id }, query)}
-                onOpen={(id) => navigate({ name: 'listing', id }, query)}
-                onPage={(page) => updateFilters({ page })}
-                onStateChanged={onStateChanged}
-              />
+              {view === 'map' ? (
+                <FeedMap
+                  key={profile.id}
+                  set={mapSet.data}
+                  loading={mapSet.loading}
+                  error={mapSet.error}
+                  overview={overview.data}
+                  profile={profile}
+                  selectedId={selectedId}
+                  hrefFor={(id) => toHash({ name: 'listing', id }, query)}
+                  onOpen={(id) => navigate({ name: 'listing', id }, query)}
+                  listHref={listHref}
+                />
+              ) : (
+                <ListingFeed
+                  page={feed.data}
+                  loading={feed.loading}
+                  error={feed.error}
+                  profile={profile}
+                  selectedId={selectedId}
+                  hrefFor={(id) => toHash({ name: 'listing', id }, query)}
+                  onOpen={(id) => navigate({ name: 'listing', id }, query)}
+                  onPage={(page) => updateFilters({ page })}
+                  onStateChanged={onStateChanged}
+                  mapHref={mapHref}
+                  onMap={onMap}
+                />
+              )}
             </section>
           )}
           {showDetail && (

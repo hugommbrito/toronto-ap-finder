@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daycareLabel, layoutLabel, parkingCostUnstated, parkingLabel, sqftToM2, unverifiedLabel, walkMinutes } from './labels';
+import { daycareLabel, layoutLabel, parkingCostUnstated, parkingLabel, scoreBand, sqftToM2, unverifiedLabel, walkMinutes } from './labels';
 
 describe('parkingLabel', () => {
   // The same five cases, in the same order, as buildMessage() — a card and a message about one
@@ -73,5 +73,16 @@ describe('small helpers', () => {
     expect(unverifiedLabel(['parkingIncluded', 'beds', 'parkingIncluded', 'somethingNew'])).toBe(
       'não consta no anúncio: estacionamento, quartos, somethingNew — vale confirmar',
     );
+  });
+});
+
+describe('scoreBand', () => {
+  // One rule for the badge on the card and the marker on the map, so the two never disagree.
+  it('is good at the bar, near within ten points under it, low below that', () => {
+    expect(scoreBand(70, 70)).toBe('good');
+    expect(scoreBand(95, 70)).toBe('good');
+    expect(scoreBand(69.9, 70)).toBe('near');
+    expect(scoreBand(60, 70)).toBe('near');
+    expect(scoreBand(59.9, 70)).toBe('low');
   });
 });

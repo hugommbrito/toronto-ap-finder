@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BedroomTier } from '@/profiles/profile.schema';
-import type { FeedItem } from './api-types';
-import { applyFilters, facetsOf, skippedComponents, sortItems, tierOf } from './listings-view.service';
+import type { FeedItem, ListingStatus, MapSurroundings } from './api-types';
+import { applyFilters, capLocated, facetsOf, skippedComponents, sortItems, tierOf, toMapListing } from './listings-view.service';
 
 const TIERS: BedroomTier[] = [
   { label: '3BR+', rule: { kind: 'min', beds: 3 }, value: 1 },
@@ -20,6 +20,10 @@ function item(over: {
   city?: string | null;
   area?: string | null;
   tier?: number | null;
+  lat?: number;
+  lng?: number;
+  status?: ListingStatus;
+  delistedAt?: string;
 }): FeedItem {
   const id = over.id ?? 'x';
   return {
@@ -44,20 +48,20 @@ function item(over: {
       inSuiteLaundry: null,
       address: null,
       city: over.city === undefined ? 'Toronto' : over.city,
-      lat: null,
-      lng: null,
+      lat: over.lat ?? null,
+      lng: over.lng ?? null,
       postedAt: over.postedAt ?? null,
       availableFrom: null,
       buildingBuiltBefore2018: null,
       firstSeenAt: over.firstSeenAt ?? '2026-09-01T00:00:00.000Z',
       lastSeenAt: '2026-09-02T00:00:00.000Z',
       hydratedAt: null,
-      delistedAt: null,
+      delistedAt: over.delistedAt ?? null,
     },
     score: over.score ?? 70,
     breakdown: {},
     firstScoredAt: '2026-09-01T00:00:00.000Z',
-    state: { status: 'none', note: null, updatedAt: null },
+    state: { status: over.status ?? 'none', note: null, updatedAt: null },
     rentsafe: null,
     notifiedAt: null,
     duplicates: 0,
@@ -168,5 +172,60 @@ describe('sortItems', () => {
     const tied = [item({ id: 'a', score: 50, rent: 3000 }), item({ id: 'b', score: 90, rent: 3000 })];
     expect(ids(sortItems(tied, 'rent'))).toEqual(['b', 'a']);
     expect(ids(tied)).toEqual(['a', 'b']);
+  });
+});
+
+describe('capLocated', () => {
+  const items = [
+    item({ id: 'a', score: 90, lat: 43.7, lng: -79.4 }),
+    item({ id: 'b', score: 80 }), // no coordinates: nothing to draw
+    item({ id: 'c', score: 70, lat: 43.71, lng: -79.41 }),
+    item({ id: 'd', score: 60, lat: 43.72, lng: -79.42 }),
+  ];
+  const ids = (xs: FeedItem[]): string[] => xs.map((x) => x.listing.id);
+
+  it('drops what cannot be drawn and counts it, keeping the order', () => {
+    const cap = capLocated(items, 100);
+    expect(ids(cap.kept)).toEqual(['a', 'c', 'd']);
+    expect(cap).toMatchObject({ located: 3, unlocated: 1, truncated: false });
+  });
+
+  it('keeps the best when there are more than the cap, and says so', () => {
+    // The input is score-descending from SQL, so a plain slice is the top of the ranking.
+    const cap = capLocated(items, 2);
+    expect(ids(cap.kept)).toEqual(['a', 'c']);
+    expect(cap).toMatchObject({ located: 3, unlocated: 1, truncated: true });
+  });
+
+  it('is not truncated exactly at the cap', () => {
+    expect(capLocated(items, 3).truncated).toBe(false);
+    expect(capLocated([], 3)).toEqual({ kept: [], located: 0, unlocated: 0, truncated: false });
+  });
+});
+
+describe('toMapListing', () => {
+  const surroundings: MapSurroundings = { reachableLines: [], nearestDaycare: null, daycareCoverage: 'full' };
+
+  it('carries the tier label, the decision, and whether the ad is gone', () => {
+    const point = toMapListing(
+      item({ id: 'a', score: 82, rent: 2950, lat: 43.7, lng: -79.4, tier: 1, status: 'favourite', delistedAt: '2026-09-10T00:00:00.000Z' }),
+      surroundings,
+    );
+    expect(point).toMatchObject({
+      id: 'a',
+      lat: 43.7,
+      lng: -79.4,
+      score: 82,
+      totalMonthlyCost: 2950,
+      tier: 'tier 1',
+      status: 'favourite',
+      delisted: true,
+      surroundings,
+    });
+    expect(toMapListing(item({ id: 'b', lat: 43.7, lng: -79.4 }), surroundings)).toMatchObject({ tier: null, delisted: false, status: 'none' });
+  });
+
+  it('refuses a listing without coordinates, which capLocated should have removed', () => {
+    expect(() => toMapListing(item({ id: 'x' }), surroundings)).toThrow(/no coordinates/);
   });
 });

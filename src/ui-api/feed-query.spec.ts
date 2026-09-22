@@ -1,6 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { MAX_PAGE_SIZE, feedQuerySchema, parseOrBadRequest, stateUpdateSchema } from './feed-query';
+import {
+  MAX_MAP_POINTS,
+  MAX_PAGE_SIZE,
+  feedQuerySchema,
+  mapQuerySchema,
+  parseOrBadRequest,
+  stateUpdateSchema,
+} from './feed-query';
 
 describe('feedQuerySchema', () => {
   it('fills the defaults from a bare profile', () => {
@@ -67,6 +74,36 @@ describe('feedQuerySchema', () => {
     expect(feedQuerySchema.safeParse({ profile: 'p', sort: 'price' }).success).toBe(false);
     expect(feedQuerySchema.parse({ profile: 'p', sort: '' }).sort).toBe('score');
     expect(feedQuerySchema.parse({ profile: 'p', sort: 'rent' }).sort).toBe('rent');
+  });
+});
+
+describe('mapQuerySchema', () => {
+  it('takes the feed narrowing and drops what only a list needs', () => {
+    // A hash copied from the list carries page and sort; the map must swallow them, not 400.
+    const q = mapQuerySchema.parse({ profile: 'sister', page: '3', limit: '10', sort: 'rent', minScore: '40' });
+    expect(q).toEqual({
+      profile: 'sister',
+      minScore: 40,
+      maxRent: undefined,
+      tier: undefined,
+      city: undefined,
+      area: undefined,
+      source: undefined,
+      includeDelisted: false,
+      includeDismissed: false,
+      status: undefined,
+    });
+    expect('page' in q).toBe(false);
+    expect('sort' in q).toBe(false);
+  });
+
+  it('still requires a profile and still validates what it keeps', () => {
+    expect(mapQuerySchema.safeParse({}).success).toBe(false);
+    expect(mapQuerySchema.safeParse({ profile: 'p', minScore: '101' }).success).toBe(false);
+  });
+
+  it('caps the marker set at a number the browser can draw', () => {
+    expect(MAX_MAP_POINTS).toBe(1500);
   });
 });
 

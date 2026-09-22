@@ -55,6 +55,20 @@ export const feedQuerySchema = z.object({
 });
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
 
+/**
+ * The most listings the map will draw. Bounds the surroundings computation (one geography scan
+ * per distinct location) and the payload; the response says when it applied.
+ */
+export const MAX_MAP_POINTS = 1500;
+
+/**
+ * The map takes the feed's narrowing and nothing about its order or its pages. `.omit` on a
+ * `z.object` strips the unknown keys rather than rejecting them, so a `?page=3` copied over from
+ * the list does not break the map.
+ */
+export const mapQuerySchema = feedQuerySchema.omit({ page: true, limit: true, sort: true });
+export type MapQuery = z.infer<typeof mapQuerySchema>;
+
 export const profileQuerySchema = z.object({ profile: z.string().min(1) });
 
 /** A listing id that is not a uuid cannot name a row, so it is a 404 rather than a database error. */

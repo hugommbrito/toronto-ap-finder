@@ -117,6 +117,26 @@ export function areaContaining(point: Point): string | null {
   return loadIndex().areas.find((area) => pointInRing(point, area))?.name ?? null;
 }
 
+/**
+ * The outlines behind the areas a profile refuses — for drawing them, never for deciding.
+ *
+ * Same lookup `excludedAreaOf` performs, minus the verdict: a name without a boundary comes back
+ * in `missing` rather than as an error, because Brampton is refused by name alone and has no
+ * outline to draw. The decision path keeps its own stricter handling of that case.
+ */
+export function excludedAreaBoundaries(excluded: readonly string[]): { areas: AreaBoundary[]; missing: string[] } {
+  const { areas } = loadIndex();
+  const found: AreaBoundary[] = [];
+  const missing: string[] = [];
+  for (const name of excluded) {
+    const key = normalizeCity(name);
+    const area = areas.find((a) => a.key === key);
+    if (area) found.push({ name: area.name, ring: area.ring });
+    else missing.push(name);
+  }
+  return { areas: found, missing };
+}
+
 export type AreaVerdict =
   | { kind: 'inside'; area: string; by: 'label' | 'coordinates' }
   | { kind: 'outside' }

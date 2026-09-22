@@ -154,6 +154,78 @@ export interface MapPoints {
   }>;
 }
 
+/**
+ * What the map's mini-card says about the surroundings — the same three facts GeoSummary prints,
+ * projected from `geoContextFor` so the map cannot disagree with the detail or the message.
+ */
+export interface MapSurroundings {
+  reachableLines: ReachableLine[];
+  nearestDaycare: GeoContext['nearestDaycare'];
+  /** 'none' means nothing was searched here, so the card must not claim "sem creche". */
+  daycareCoverage: DaycareCoverage;
+}
+
+/** One located listing, slimmed to what a marker and its mini-card need. */
+export interface MapListing {
+  id: string;
+  lat: number;
+  lng: number;
+  score: number;
+  totalMonthlyCost: number;
+  beds: number | null;
+  dens: number;
+  baths: number | null;
+  areaSqft: number | null;
+  /** The bedroom tier's label, when the layout sits on one. */
+  tier: string | null;
+  title: string;
+  address: string | null;
+  city: string | null;
+  source: string;
+  status: ListingStatus;
+  delisted: boolean;
+  surroundings: MapSurroundings;
+}
+
+/**
+ * GET /api/map. Not a page: every located match up to MAX_MAP_POINTS, best score first. The
+ * counts say what the marker set leaves out, so the page can say it rather than imply completeness.
+ */
+export interface MapSet {
+  items: MapListing[];
+  /** Matches after narrowing, located or not — the number the feed reports as `total`. */
+  total: number;
+  located: number;
+  /** Passed the filters but have no coordinates, so they cannot be drawn. */
+  unlocated: number;
+  /** True when `items.length < located`: the worst-scored located ones were left out. */
+  truncated: boolean;
+  applied: { minScore: number; includeDelisted: boolean; includeDismissed: boolean };
+  /** The feed's facets, so the filter chips keep their counts in map mode without a second request. */
+  facets: FeedPage['facets'];
+}
+
+/**
+ * GET /api/geo. What the map draws under the listings: the whole seeded geography, plus the
+ * outlines of the areas the profile refuses. Rings are in GeoJSON order, [lng, lat], as the
+ * boundary file has them; the browser converts.
+ */
+export interface GeoOverview {
+  stations: Array<{
+    id: string;
+    name: string;
+    line: string;
+    status: 'operational' | 'future';
+    expectedYear: number | null;
+    lat: number;
+    lng: number;
+  }>;
+  daycares: Array<{ id: string; name: string; lat: number; lng: number; cwelcc: boolean; capacityKnown: boolean }>;
+  excludedAreas: Array<{ name: string; ring: Array<[number, number]> }>;
+  /** Refused by name but with no outline (Brampton is its own municipality), so the legend can say so. */
+  unmappedAreas: string[];
+}
+
 export interface VerificationView {
   model: string;
   bedrooms: number | null;

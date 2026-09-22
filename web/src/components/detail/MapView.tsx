@@ -2,6 +2,7 @@ import * as L from 'leaflet';
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { ListingCore, MapPoints } from '@shared/api-types';
 import { distanceLabel } from '../../lib/labels';
+import { COLOURS, esc } from '../../lib/mapStyle';
 
 interface Props {
   listing: ListingCore;
@@ -13,18 +14,6 @@ interface Props {
 const WALKING_DETOUR = 1.3;
 /** Full transit credit inside this walk — TRANSIT_FULL_CREDIT_M in scoring/components. */
 const TRANSIT_FULL_CREDIT_M = 400;
-
-const COLOURS = {
-  home: '#0f766e',
-  operational: '#1d4ed8',
-  future: '#6b7280',
-  cwelcc: '#6d28d9',
-  daycare: '#d97706',
-};
-
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 /**
  * The listing and everything the score counted around it, on OpenStreetMap tiles.

@@ -569,9 +569,19 @@ textarea {
   margin-top: 0.3rem;
 }
 
-.card .actions.compact {
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   border-top: 1px solid var(--border);
   padding: 0.35rem 0.75rem;
+}
+
+.card-foot .btn.link.small {
+  font-size: 0.85rem;
+  min-height: 1.8rem;
+  white-space: nowrap;
 }
 
 .pager {
@@ -772,6 +782,242 @@ textarea {
 .dot.hollow {
   background: transparent;
   border: 2px dashed;
+}
+
+/* ---- map view (feed pane) ------------------------------------------------------------- */
+
+/*
+ * In map mode the shell is the viewport and the pane owns the scroll — the same chain the
+ * two-pane desktop layout already uses — so the map can take whatever height the filters leave.
+ */
+.shell.map-mode {
+  height: 100dvh;
+}
+
+.map-mode .pane-feed,
+.map-mode .pane-detail {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.map-mode .pane-feed {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.75rem;
+}
+
+.map-mode .filters {
+  flex: 0 0 auto;
+}
+
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+
+.segmented button {
+  font: inherit;
+  font-size: 0.92rem;
+  min-height: 2.2rem;
+  padding: 0 0.9rem;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button.on {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.feedmap {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 50vh;
+}
+
+.feedmap-bar {
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+/* z-index 0 makes a stacking context, so Leaflet's own layers stay under the sticky top bar. */
+.feedmap-map {
+  flex: 1 1 auto;
+  min-height: 18rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  z-index: 0;
+}
+
+.feedmap.loading .feedmap-map {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.leaflet-tooltip.minicard-tip {
+  white-space: normal;
+  padding: 0.5rem 0.6rem;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip,
+.leaflet-tooltip {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.leaflet-tooltip.minicard-tip::before {
+  border-top-color: var(--surface);
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--muted);
+}
+
+.minicard {
+  width: 15rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.minicard > div {
+  margin: 0.15rem 0;
+}
+
+.minicard-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.minicard .score {
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius-sm);
+}
+
+.minicard-title {
+  font-weight: 600;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.minicard-state {
+  color: var(--near);
+  font-weight: 600;
+}
+
+.minicard-open {
+  margin-top: 0.4rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.minicard.group ol {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.minicard.group li a {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.minicard.group li a:hover {
+  color: var(--accent);
+}
+
+.minicard.group .score {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 0.8rem;
+}
+
+/* The numbered building marker: HTML, styled by class, so it follows the theme on its own. */
+.unit-marker {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+.unit-marker.band-good {
+  background: var(--good);
+}
+
+.unit-marker.band-near {
+  background: var(--near);
+}
+
+.unit-marker.band-low {
+  background: var(--low);
+}
+
+.unit-marker.outline-favourite {
+  border-color: #ca8a04;
+  border-width: 3px;
+}
+
+.unit-marker.outline-contacted {
+  border-color: #16a34a;
+  border-width: 3px;
+}
+
+.unit-marker.faded {
+  opacity: 0.45;
+}
+
+.unit-marker.dashed {
+  border-style: dashed;
+}
+
+.unit-marker.open {
+  transform: scale(1.35);
+}
+
+.area-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.area-label::before {
+  display: none;
 }
 
 /* ---- funnel --------------------------------------------------------------------------- */

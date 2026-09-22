@@ -15,10 +15,12 @@ interface Props {
   href: string;
   onOpen: () => void;
   onStateChanged: () => void;
+  mapHref: string;
+  onMap: () => void;
 }
 
 /** The Telegram message, laid out. Everything above the score breakdown is here; the rest is on the detail. */
-export function ListingCard({ item, profile, selected, href, onOpen, onStateChanged }: Props): ReactElement {
+export function ListingCard({ item, profile, selected, href, onOpen, onStateChanged, mapHref, onMap }: Props): ReactElement {
   const l = item.listing;
   const classes = ['card'];
   if (selected) classes.push('selected');
@@ -57,7 +59,23 @@ export function ListingCard({ item, profile, selected, href, onOpen, onStateChan
           </p>
         </div>
       </a>
-      <StateActions listingId={l.id} profileId={profile.id} state={item.state} compact onChanged={onStateChanged} />
+      <div className="card-foot">
+        <StateActions listingId={l.id} profileId={profile.id} state={item.state} compact onChanged={onStateChanged} />
+        {l.lat !== null && l.lng !== null && (
+          <a
+            className="btn link small"
+            href={mapHref}
+            title="Ver este anúncio no mapa"
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+              e.preventDefault();
+              onMap();
+            }}
+          >
+            🗺 no mapa
+          </a>
+        )}
+      </div>
     </article>
   );
 }

@@ -149,6 +149,15 @@ export class GeoIndex {
   get stationCount(): number {
     return this.stations.length;
   }
+
+  /** The whole snapshot, for drawing it. Scoring never needs this; the map view does. */
+  allDaycares(): readonly DaycarePoint[] {
+    return this.daycares;
+  }
+
+  allStations(): readonly TransitPoint[] {
+    return this.stations;
+  }
 }
 
 export interface ReachableLine {

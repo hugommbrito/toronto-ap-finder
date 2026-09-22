@@ -13,9 +13,24 @@ interface Props {
   onOpen: (id: string) => void;
   onPage: (page: number) => void;
   onStateChanged: () => void;
+  /** The same filters as a map; `onMap` also asks the map to centre on the card's listing. */
+  mapHref: string;
+  onMap: (id: string) => void;
 }
 
-export function ListingFeed({ page, loading, error, profile, selectedId, hrefFor, onOpen, onPage, onStateChanged }: Props): ReactElement {
+export function ListingFeed({
+  page,
+  loading,
+  error,
+  profile,
+  selectedId,
+  hrefFor,
+  onOpen,
+  onPage,
+  onStateChanged,
+  mapHref,
+  onMap,
+}: Props): ReactElement {
   if (error) return <p className="error pad">{error.message}</p>;
   if (!page) return <p className="muted pad">Carregando anúncios…</p>;
 
@@ -42,6 +57,8 @@ export function ListingFeed({ page, loading, error, profile, selectedId, hrefFor
                 href={hrefFor(item.listing.id)}
                 onOpen={() => onOpen(item.listing.id)}
                 onStateChanged={onStateChanged}
+                mapHref={mapHref}
+                onMap={() => onMap(item.listing.id)}
               />
             </li>
           ))}

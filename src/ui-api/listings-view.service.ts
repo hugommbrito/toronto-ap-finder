@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { ListingVerificationRow, RentSafeBuildingRow } from '@/db/schema';
-import { areaContaining } from '@/geo/areas';
+import { areaContaining, excludedAreaBoundaries } from '@/geo/areas';
 import { canonicalMunicipality } from '@/geo/city';
-import { geoContextFor, mapPointsFor, transitRadiusOf } from '@/geo/geo-context';
+import { daycareCoverageOf } from '@/geo/coverage';
+import { geoContextFor, mapPointsFor, surroundingsOf, transitRadiusOf } from '@/geo/geo-context';
 import { GeoService } from '@/geo/geo.service';
 import { listingFromRow, type TriageListing } from '@/listings/listing.types';
 import { ListingsRepository } from '@/listings/listings.repository';
@@ -14,9 +15,13 @@ import { evaluateBedroomRule, type UnitLayout } from '@/scoring/bedroom-rule';
 import type {
   FeedItem,
   FeedPage,
+  GeoOverview,
   ListingCore,
   ListingDetail,
   ListingState,
+  MapListing,
+  MapSet,
+  MapSurroundings,
   ProfileSummary,
   RentSafeFull,
   Sibling,
@@ -25,7 +30,7 @@ import type {
   Summary,
   VerificationView,
 } from './api-types';
-import type { FeedQuery } from './feed-query';
+import { MAX_MAP_POINTS, type FeedQuery, type MapQuery } from './feed-query';
 import {
   ListingsViewRepository,
   type FeedRow,
@@ -64,6 +69,91 @@ export class ListingsViewService {
    * selected; and offset paging over a few hundred rows costs nothing.
    */
   async feed(q: FeedQuery): Promise<FeedPage> {
+    const { minScore, includeDismissed, narrowed, facets } = await this.narrow(q);
+    const sorted = sortItems(narrowed, q.sort);
+    const start = (q.page - 1) * q.limit;
+
+    return {
+      items: sorted.slice(start, start + q.limit),
+      total: sorted.length,
+      page: q.page,
+      limit: q.limit,
+      applied: { minScore, sort: q.sort, includeDelisted: q.includeDelisted, includeDismissed },
+      facets,
+    };
+  }
+
+  /**
+   * The same narrowed set, drawn rather than listed.
+   *
+   * Unpaged and unsorted — the SQL order, best score first, is the one the cap keeps — and capped
+   * at MAX_MAP_POINTS because every located point costs a scan of the geography for its
+   * surroundings. Those are memoised per location within the request: Zumper and CAPREIT give one
+   * coordinate per building, so distinct locations are far fewer than rows. The coverage is in the
+   * key because it is the one non-coordinate input `geoContextFor` reads.
+   */
+  async map(q: MapQuery): Promise<MapSet> {
+    const { profile, minScore, includeDismissed, narrowed, facets } = await this.narrow(q);
+    const { kept, located, unlocated, truncated } = capLocated(narrowed, MAX_MAP_POINTS);
+    const geo = this.geoService.get();
+    const memo = new Map<string, MapSurroundings>();
+    const surroundingsFor = (l: ListingCore): MapSurroundings => {
+      const key = `${l.lat},${l.lng},${daycareCoverageOf(l.city)}`;
+      let hit = memo.get(key);
+      if (!hit) {
+        hit = surroundingsOf(geoContextFor(l, profile, geo));
+        memo.set(key, hit);
+      }
+      return hit;
+    };
+
+    return {
+      items: kept.map((it) => toMapListing(it, surroundingsFor(it.listing))),
+      total: narrowed.length,
+      located,
+      unlocated,
+      truncated,
+      applied: { minScore, includeDelisted: q.includeDelisted, includeDismissed },
+      facets,
+    };
+  }
+
+  /** What the map draws under the listings: the boot-time geography, whole, and the refused outlines. */
+  async geoOverview(profileId: string): Promise<GeoOverview> {
+    const profile = await this.loadProfile(profileId);
+    const geo = this.geoService.get();
+    const { areas, missing } = excludedAreaBoundaries(profile.hard.excludeAreas);
+    return {
+      stations: geo.allStations().map((s) => ({
+        id: s.id,
+        name: s.name,
+        line: s.line,
+        status: s.status,
+        expectedYear: s.expectedYear,
+        lat: s.lat,
+        lng: s.lng,
+      })),
+      daycares: geo.allDaycares().map((d) => ({
+        id: d.id,
+        name: d.name,
+        lat: d.lat,
+        lng: d.lng,
+        cwelcc: d.cwelcc,
+        capacityKnown: d.capacityKnown,
+      })),
+      excludedAreas: areas,
+      unmappedAreas: missing,
+    };
+  }
+
+  /** Everything the feed and the map share: load, narrow, count. Nothing about order or pages. */
+  private async narrow(q: MapQuery): Promise<{
+    profile: TenantProfile;
+    minScore: number;
+    includeDismissed: boolean;
+    narrowed: FeedItem[];
+    facets: FeedPage['facets'];
+  }> {
     const profile = await this.loadProfile(q.profile);
     const minScore = q.minScore ?? profile.notify.minScore;
     // Asking for the dismissed ones is asking to see them.
@@ -77,20 +167,12 @@ export class ListingsViewService {
       status: q.status,
     });
     const items = rows.map((row) => toFeedItem(row, profile));
-    const facets = facetsOf(items);
-    const narrowed = sortItems(
-      applyFilters(items, { tier: q.tier, city: q.city, area: q.area, sources: q.source }),
-      q.sort,
-    );
-    const start = (q.page - 1) * q.limit;
-
     return {
-      items: narrowed.slice(start, start + q.limit),
-      total: narrowed.length,
-      page: q.page,
-      limit: q.limit,
-      applied: { minScore, sort: q.sort, includeDelisted: q.includeDelisted, includeDismissed },
-      facets,
+      profile,
+      minScore,
+      includeDismissed,
+      facets: facetsOf(items),
+      narrowed: applyFilters(items, { tier: q.tier, city: q.city, area: q.area, sources: q.source }),
     };
   }
 
@@ -265,6 +347,53 @@ export const SORTS: Record<SortKey, Comparator> = {
 
 export function sortItems(items: FeedItem[], sort: SortKey): FeedItem[] {
   return [...items].sort(SORTS[sort]);
+}
+
+export interface LocatedCap {
+  /** The located items, in the order given, up to `max`. */
+  kept: FeedItem[];
+  located: number;
+  unlocated: number;
+  truncated: boolean;
+}
+
+/**
+ * The items a map can draw, and the counts for the two ways one can go missing: no coordinates,
+ * or below the cap. Order is preserved, so a score-descending input keeps its best.
+ */
+export function capLocated(items: FeedItem[], max: number): LocatedCap {
+  const located = items.filter((it) => it.listing.lat !== null && it.listing.lng !== null);
+  return {
+    kept: located.slice(0, max),
+    located: located.length,
+    unlocated: items.length - located.length,
+    truncated: located.length > max,
+  };
+}
+
+export function toMapListing(item: FeedItem, surroundings: MapSurroundings): MapListing {
+  const l = item.listing;
+  // capLocated is the gate; reaching here without coordinates is a programming error, not data.
+  if (l.lat === null || l.lng === null) throw new Error(`listing ${l.id} has no coordinates and cannot be drawn`);
+  return {
+    id: l.id,
+    lat: l.lat,
+    lng: l.lng,
+    score: item.score,
+    totalMonthlyCost: l.totalMonthlyCost,
+    beds: l.beds,
+    dens: l.dens,
+    baths: l.baths,
+    areaSqft: l.areaSqft,
+    tier: item.tier?.label ?? null,
+    title: l.title,
+    address: l.address,
+    city: l.city,
+    source: l.source,
+    status: item.state.status,
+    delisted: l.delistedAt !== null,
+    surroundings,
+  };
 }
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);

@@ -608,9 +608,22 @@ keeps it in the browser, and sends it as a bearer on every call to `/api`.
 | `GET /api/profiles` | active profiles with their weights and bedroom tiers — never the chat ids |
 | `GET /api/listings?profile=` | the ranked feed; narrows by `minScore`, `maxRent`, `tier`, `city`, `area`, `source`, `status`, `includeDelisted`, `includeDismissed`; `sort`, `page`, `limit` |
 | `GET /api/listings/:id?profile=` | one listing with its body, the model's reading of it, the RentSafeTO record, the other portals carrying the same unit, and the points the map draws |
+| `GET /api/map?profile=` | every located match as a slim point for the map view — the feed's narrowing without `sort`, `page` or `limit`; capped at the 1,500 best by score, with `total`, `unlocated` and `truncated` saying what was left out |
+| `GET /api/geo?profile=` | what the map draws under the listings: every station, every seeded daycare, and the 1998 outlines of the profile's `excludeAreas` |
 | `GET /api/summary?profile=` | last cycle, paused sources, and the counts in the header |
 | `PUT /api/listings/:id/state?profile=` | `{ status?, note? }`, a partial update — writing a note never resets a favourite |
 | `GET /api/funnel?hours=` | the `/operations` report, for the funnel tab |
+
+**The same set, as a map.** `Lista | Mapa` above the filters — `#/?view=map` — draws every listing
+the current filters admit, not a page of them. Colour is the score band, the same three the badge
+uses; the rim is the decision (gold for a favourite, green for contacted, faded when dismissed, dashed
+when the source removed it). Units sharing a building stack into one numbered marker, because Zumper
+and CAPREIT give a building's coordinate to every unit in it; its popup lists them. Hovering a marker
+shows the card with the surroundings line, produced by the same `geoContextFor` as the message and
+the detail; clicking opens the detail on the right with the map still on the left. Stations are
+always drawn, daycares from neighbourhood zoom, and the profile's `excludeAreas` as their 1998
+outlines. The visible area does not filter — the map shows what the filters return, and stays where
+it was put unless no result is left in view.
 
 Two things the page shows that are worth reading correctly. The score is the stored one, as of the
 last cycle that looked at the listing; change a weight and it moves only after `cycle:stored`. And

@@ -8,6 +8,13 @@ import type { GeoContext, ListingCore, ListingStatus, ReachableLine } from '@sha
  * the same listing. When one changes, change the other.
  */
 
+export type ScoreBand = 'good' | 'near' | 'low';
+
+/** Green at or above the profile's bar, amber within ten points of it, grey below that. */
+export function scoreBand(score: number, minScore: number): ScoreBand {
+  return score >= minScore ? 'good' : score >= minScore - 10 ? 'near' : 'low';
+}
+
 export function money(n: number): string {
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }

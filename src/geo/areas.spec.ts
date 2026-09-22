@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { areaContaining, excludedAreaOf, setMunicipalBoundaries } from './areas';
+import { areaContaining, excludedAreaBoundaries, excludedAreaOf, setMunicipalBoundaries } from './areas';
 
 /** Real addresses, checked against the committed 1998 boundaries. */
 const SCARBOROUGH_GOLF = { lat: 43.7608, lng: -79.21562 }; // 567 Scarborough Golf Club Rd
@@ -97,5 +97,30 @@ describe('excludedAreaOf', () => {
     const verdict = excludedAreaOf({ city: 'Toronto', ...SCARBOROUGH_GOLF }, REFUSED);
     expect(verdict.kind).toBe('unknown');
     expect(verdict).toMatchObject({ field: 'excludeAreas' });
+  });
+});
+
+describe('excludedAreaBoundaries', () => {
+  it('returns the outlines it has and names the ones it has not', () => {
+    const { areas, missing } = excludedAreaBoundaries(REFUSED);
+    expect(areas.map((a) => a.name)).toEqual(['Scarborough', 'East York']);
+    // Brampton is refused by name; there is nothing to draw and that is not an error here.
+    expect(missing).toEqual(['Brampton']);
+  });
+
+  it('hands back closed rings in the file’s [lng, lat] order', () => {
+    const [scarborough] = excludedAreaBoundaries(['Scarborough']).areas;
+    const ring = scarborough!.ring;
+    expect(ring.length).toBeGreaterThan(3);
+    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    // Toronto is at roughly -79°, 43.7°: longitude first.
+    expect(ring[0]![0]).toBeLessThan(-78);
+    expect(ring[0]![1]).toBeGreaterThan(43);
+  });
+
+  it('matches the spelling the profile uses, not the file’s', () => {
+    setMunicipalBoundaries([{ name: 'East York', ring: [[-79.35, 43.7], [-79.34, 43.7], [-79.34, 43.71], [-79.35, 43.7]] }]);
+    expect(excludedAreaBoundaries(['east york']).areas.map((a) => a.name)).toEqual(['East York']);
+    expect(excludedAreaBoundaries([]).areas).toEqual([]);
   });
 });

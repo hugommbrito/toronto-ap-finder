@@ -1,10 +1,11 @@
 import { Body, Controller, Get, NotFoundException, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { windowHours } from '@/operations/operations.controller';
 import type { OperationsReport } from '@/operations/operations.service';
-import type { FeedPage, ListingDetail, ListingState, ProfileSummary, Summary } from './api-types';
+import type { FeedPage, GeoOverview, ListingDetail, ListingState, MapSet, ProfileSummary, Summary } from './api-types';
 import {
   feedQuerySchema,
   listingIdSchema,
+  mapQuerySchema,
   parseOrBadRequest,
   profileQuerySchema,
   stateUpdateSchema,
@@ -38,6 +39,23 @@ export class ListingsViewController {
   listing(@Param('id') id: string, @Query() query: Record<string, unknown>): Promise<ListingDetail> {
     const { profile } = parseOrBadRequest(profileQuerySchema, query);
     return this.view.detail(listingId(id), profile);
+  }
+
+  /**
+   * The feed's narrowing, drawn: every located match up to the cap, with its surroundings. Not
+   * under `listings/` on purpose — Nest matches routes in declaration order, and `listings/map`
+   * declared after `listings/:id` would be read as an id.
+   */
+  @Get('map')
+  map(@Query() query: Record<string, unknown>): Promise<MapSet> {
+    return this.view.map(parseOrBadRequest(mapQuerySchema, query));
+  }
+
+  /** The layers under the map: every station, every daycare, and the profile's refused outlines. */
+  @Get('geo')
+  geo(@Query() query: Record<string, unknown>): Promise<GeoOverview> {
+    const { profile } = parseOrBadRequest(profileQuerySchema, query);
+    return this.view.geoOverview(profile);
   }
 
   @Get('summary')

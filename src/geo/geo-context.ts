@@ -1,7 +1,7 @@
 import { daycareCoverageOf } from '@/geo/coverage';
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { reachableLines, type GeoIndex } from '@/scoring/context';
-import type { GeoContext, MapPoints } from '@/ui-api/api-types';
+import type { GeoContext, MapPoints, MapSurroundings } from '@/ui-api/api-types';
 
 /** The three listing fields the geography needs. A `TriageListing` satisfies it. */
 export interface GeoSubject {
@@ -92,6 +92,18 @@ export function geoContextFor(listing: GeoSubject, profile: TenantProfile, geo: 
           lng: closest.daycare.lng,
         }
       : null,
+  };
+}
+
+/**
+ * The three facts the map's mini-card has room for, taken from a context rather than recomputed,
+ * so the card can only ever say a subset of what the detail says.
+ */
+export function surroundingsOf(ctx: GeoContext): MapSurroundings {
+  return {
+    reachableLines: ctx.reachableLines,
+    nearestDaycare: ctx.nearestDaycare,
+    daycareCoverage: ctx.daycaresNearby.coverage,
   };
 }
 

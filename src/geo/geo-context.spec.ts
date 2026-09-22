@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TenantProfile } from '@/profiles/profile.schema';
 import { GeoIndex, type DaycarePoint, type TransitPoint } from '@/scoring/context';
-import { geoContextFor, mapPointsFor, transitRadiusOf } from './geo-context';
+import { geoContextFor, mapPointsFor, surroundingsOf, transitRadiusOf } from './geo-context';
 
 /** A profile shaped like the live one where it matters here: toddler places within 800 m. */
 const PROFILE: TenantProfile = {
@@ -112,6 +112,31 @@ describe('geoContextFor', () => {
     const ctx = geoContextFor({ lat: 43.59, lng: -79.64, city: 'Oakville' }, PROFILE, geo);
     expect(ctx.daycaresNearby).toEqual({ total: 0, cwelcc: 0, radiusM: 800, coverage: 'none' });
     expect(ctx.nearestDaycare).toBeNull();
+  });
+});
+
+describe('surroundingsOf', () => {
+  it('keeps the three facts the mini-card prints and nothing the map has no room for', () => {
+    const ctx = geoContextFor({ ...HOME, city: 'Toronto' }, PROFILE, geo);
+    expect(surroundingsOf(ctx)).toEqual({
+      reachableLines: ctx.reachableLines,
+      nearestDaycare: ctx.nearestDaycare,
+      daycareCoverage: 'full',
+    });
+    expect(Object.keys(surroundingsOf(ctx)).sort()).toEqual(['daycareCoverage', 'nearestDaycare', 'reachableLines']);
+  });
+
+  it('carries the "nothing was searched" verdict through, so the card cannot say "sem creche"', () => {
+    const ctx = geoContextFor({ lat: null, lng: null, city: 'Toronto' }, PROFILE, geo);
+    expect(surroundingsOf(ctx)).toEqual({ reachableLines: [], nearestDaycare: null, daycareCoverage: 'none' });
+  });
+});
+
+describe('GeoIndex snapshot accessors', () => {
+  it('hands back exactly what the index was built with', () => {
+    expect(geo.allDaycares().map((d) => d.id)).toEqual(['close-cwelcc', 'mid', 'far', 'no-toddler', 'peel-unknown']);
+    expect(geo.allStations().map((s) => s.id)).toEqual(['Eglinton', 'Davisville', 'Future stop', 'Cooksville']);
+    expect(geo.allDaycares().length).toBe(geo.daycareCount);
   });
 });
 

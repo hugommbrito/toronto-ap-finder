@@ -27,7 +27,9 @@ const SLIDER_SETTLE_MS = 350;
 
 export function FilterBar({ profile, filters, facets, total, onChange }: Props): ReactElement {
   const wide = useMediaQuery('(min-width: 1024px)');
-  const [open, setOpen] = useState(wide);
+  // Open where there is room and the list is showing; the map wants the height, so it starts folded.
+  const [open, setOpen] = useState(wide && filters.view !== 'map');
+  useEffect(() => setOpen(wide && filters.view !== 'map'), [wide, filters.view]);
 
   const committedScore = filters.minScore ?? profile.minScore;
   const [score, setScore] = useState(committedScore);
@@ -204,7 +206,7 @@ export function FilterBar({ profile, filters, facets, total, onChange }: Props):
             mostrar descartados
           </label>
           {active > 0 && (
-            <button type="button" className="btn link" onClick={() => onChange({ ...DEFAULT_FILTERS })}>
+            <button type="button" className="btn link" onClick={() => onChange({ ...DEFAULT_FILTERS, view: filters.view })}>
               limpar filtros
             </button>
           )}

@@ -3,6 +3,7 @@ import type { SortKey } from '@shared/api-types';
 import { navigate, type Route } from '../routing/useHashRoute';
 
 export type StatusFilter = 'favourite' | 'contacted' | 'dismissed';
+export type FeedView = 'list' | 'map';
 
 export interface FilterState {
   /** Null means the profile's own minScore. */
@@ -17,6 +18,12 @@ export interface FilterState {
   includeDismissed: boolean;
   status: StatusFilter | null;
   page: number;
+  /**
+   * List or map. Not a filter — it changes how the same set is shown, not what is in it — but it
+   * shares the hash with the filters, so it goes through the same parser and serialiser rather than
+   * a second one that would have to be kept in step. Excluded from the API query and the count.
+   */
+  view: FeedView;
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -31,6 +38,7 @@ export const DEFAULT_FILTERS: FilterState = {
   includeDismissed: false,
   status: null,
   page: 1,
+  view: 'list',
 };
 
 const SORTS: SortKey[] = ['score', 'rent', 'newest', 'posted', 'area'];
@@ -57,6 +65,7 @@ export function filtersFromQuery(q: URLSearchParams): FilterState {
     includeDismissed: q.get('dismissed') === '1',
     status: STATUSES.includes(status as StatusFilter) ? (status as StatusFilter) : null,
     page: Math.max(1, num(q.get('page')) ?? 1),
+    view: q.get('view') === 'map' ? 'map' : 'list',
   };
 }
 
@@ -74,12 +83,13 @@ export function queryFromFilters(f: FilterState): URLSearchParams {
   if (f.includeDismissed) q.set('dismissed', '1');
   if (f.status) q.set('status', f.status);
   if (f.page > 1) q.set('page', String(f.page));
+  if (f.view === 'map') q.set('view', 'map');
   return q;
 }
 
-/** The API's own spelling of the same filters. */
-export function feedQueryString(profileId: string, f: FilterState, limit = 30): string {
-  const q = new URLSearchParams({ profile: profileId, page: String(f.page), limit: String(limit), sort: f.sort });
+/** The narrowing, in the API's own spelling — what the list and the map have in common. */
+function narrowing(profileId: string, f: FilterState): URLSearchParams {
+  const q = new URLSearchParams({ profile: profileId });
   if (f.minScore !== null) q.set('minScore', String(f.minScore));
   if (f.maxRent !== null) q.set('maxRent', String(f.maxRent));
   if (f.tier !== null) q.set('tier', String(f.tier));
@@ -89,7 +99,21 @@ export function feedQueryString(profileId: string, f: FilterState, limit = 30): 
   if (f.includeDelisted) q.set('includeDelisted', '1');
   if (f.includeDismissed) q.set('includeDismissed', '1');
   if (f.status) q.set('status', f.status);
+  return q;
+}
+
+/** GET /api/listings: the narrowing plus an order and a page. */
+export function feedQueryString(profileId: string, f: FilterState, limit = 30): string {
+  const q = narrowing(profileId, f);
+  q.set('page', String(f.page));
+  q.set('limit', String(limit));
+  q.set('sort', f.sort);
   return q.toString();
+}
+
+/** GET /api/map: the narrowing alone. A map has no pages and draws in no order. */
+export function mapQueryString(profileId: string, f: FilterState): string {
+  return narrowing(profileId, f).toString();
 }
 
 export function activeFilterCount(f: FilterState): number {
