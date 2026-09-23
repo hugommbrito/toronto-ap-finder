@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   buildSearchUrl,
+  detailFromRedirect,
   extractNextData,
   KijijiParseError,
   parseDetailPage,
   parseSearchPage,
+  REMOVED_STATUS,
 } from './kijiji.parser';
 import { toSearchableText } from '@/extraction/normalize';
 import { extractLocker, extractParking } from '@/extraction/rules';
@@ -180,5 +182,34 @@ describe('buildSearchUrl', () => {
     expect(buildSearchUrl(2)).toBe('https://www.kijiji.ca/b-apartments-condos/city-of-toronto/page-2/c37l1700273');
     // Query-string filters are disallowed by robots.txt; none may ever appear here.
     expect(buildSearchUrl(3)).not.toContain('?');
+  });
+});
+
+describe('detailFromRedirect', () => {
+  // Where a removed ad's detail request lands, as captured in production: the category's search
+  // page, HTTP 200, with the ad's own id in `adRemoved`. The body is search results.
+  const REMOVED_URL =
+    'https://www.kijiji.ca/b-apartments-condos/city-of-toronto/c37l1700273?radius=50.0&ll=43.67%2C-79.35&adRemoved=1733830893';
+  const DETAIL_URL = 'https://www.kijiji.ca/v-apartments-condos/city-of-toronto/2-bedroom-den/1733830893';
+
+  it('reads the redirect as the source saying this ad is gone', () => {
+    expect(detailFromRedirect(REMOVED_URL, '1733830893')).toEqual({ descriptionHtml: '', status: REMOVED_STATUS });
+  });
+
+  it('leaves a request answered in place to be parsed', () => {
+    expect(detailFromRedirect(DETAIL_URL, '1733830893')).toBeNull();
+  });
+
+  it('does not read a search page without adRemoved as a removal', () => {
+    // Absence proves nothing — the whole point of confirming rather than presuming.
+    expect(detailFromRedirect('https://www.kijiji.ca/b-apartments-condos/city-of-toronto/c37l1700273', '1733830893')).toBeNull();
+  });
+
+  it('refuses to guess when the redirect names a different ad', () => {
+    expect(() => detailFromRedirect(REMOVED_URL, '999')).toThrow(KijijiParseError);
+  });
+
+  it('treats an unparsable URL as no evidence', () => {
+    expect(detailFromRedirect('not a url', '1733830893')).toBeNull();
   });
 });

@@ -21,6 +21,7 @@ import { RentSafeService } from '@/rentsafe/rentsafe.service';
 import { applyRentSafe } from '@/rentsafe/apply';
 import { applyVerdict } from '@/verification/apply-verdict';
 import {
+  confirmsDelisting,
   pickLeastRecentlyVisited,
   type BuildingListingSource,
   type SearchTarget,
@@ -290,6 +291,14 @@ export class PipelineService {
       let enriched: TriageListing;
       try {
         const detail = await source.fetchDetail(candidate.listing);
+        if (confirmsDelisting(detail)) {
+          // Gone between the search page and now. The adapter reports this rather than throwing,
+          // so without this branch an empty body would be scored and could be notified.
+          await this.repo.markDelisted(candidate.listingId);
+          report.delisted += 1;
+          this.logger.log(`delisted ${candidate.listing.sourceId} at hydration: status ${detail.status}`);
+          continue;
+        }
         enriched = enrichFromText(candidate.listing, detail.descriptionHtml);
         report.hydrated += 1;
       } catch (err) {
@@ -579,7 +588,7 @@ export class PipelineService {
       try {
         const detail = await source.fetchDetail(listingFromRow(row));
         report.rechecked += 1;
-        if (detail.status !== null && detail.status.toUpperCase() !== 'ACTIVE') {
+        if (confirmsDelisting(detail)) {
           await this.repo.markDelisted(row.id);
           report.delisted += 1;
           this.logger.log(`delisted ${row.sourceId}: status ${detail.status}`);

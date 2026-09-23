@@ -108,6 +108,25 @@ So:
 Without this split, evaluating the category would mean 7,941 detail requests per cycle.
 With it, it is dozens.
 
+## Removed ads
+
+A removed ad's detail URL does not answer 404. Kijiji redirects it to the category's generic
+search page and appends the ad's id:
+
+```
+https://www.kijiji.ca/b-apartments-condos/city-of-toronto/c37l1700273?radius=50.0&ll=43.67%2C-79.35&adRemoved=1733830893
+```
+
+That response is HTTP 200 with a normal search-results `__NEXT_DATA__`, so nothing in the body
+says the ad is gone — there is simply no `RealEstateListing` for it. The **redirected URL** is
+the only statement of removal, and `adRemoved` is the only field in it worth reading: the
+`radius`/`ll` parameters are the search the site fell back to, not properties of the ad.
+
+The adapter therefore fetches detail pages with `fetchPage`, which reports the final URL, and
+checks `adRemoved` against the ad's own id before parsing. A match is reported as status
+`REMOVED`, which the pipeline treats like any non-ACTIVE status. A redirect naming another id is
+an error, not a delisting.
+
 ## Rate limiting — measured, not assumed
 
 Kijiji throttles harder than the brief's 2 s floor anticipates. Observed on 2026-08-17:

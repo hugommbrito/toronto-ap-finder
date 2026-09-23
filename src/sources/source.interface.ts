@@ -149,8 +149,24 @@ export interface BuildingListingSource extends SourceHealth {
 export interface ListingDetail {
   /** Advertisement body as HTML, ready for htmlToText(). */
   descriptionHtml: string;
-  /** Source-specific lifecycle marker, when exposed. */
+  /**
+   * Source-specific lifecycle marker, when exposed. `null` means the source said nothing, which
+   * is never evidence of anything; any value other than ACTIVE means the source itself said the
+   * ad is gone. See `confirmsDelisting`.
+   */
   status: string | null;
+}
+
+/**
+ * Whether a detail fetch is the source's own statement that the advertisement is no longer live.
+ *
+ * The one rule both the re-check and hydration apply. Kept as a function rather than repeated
+ * as a comparison, because the two call sites drifted once already: the re-check tested the
+ * status and hydration never looked at it, so an ad removed between triage and hydration would
+ * have been scored on an empty body had the adapter reported it instead of throwing.
+ */
+export function confirmsDelisting(detail: ListingDetail): boolean {
+  return detail.status !== null && detail.status.toUpperCase() !== 'ACTIVE';
 }
 
 /**

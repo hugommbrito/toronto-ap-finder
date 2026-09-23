@@ -1,9 +1,10 @@
-import { fetchText } from '@/seed/http';
+import { fetchPage, fetchText } from '@/seed/http';
 import type { TriageListing } from '@/listings/listing.types';
 import type { ListingDetail, TriagePage, UnitListingSource, SearchTarget } from '../source.interface';
 import { RateLimiter } from '../rate-limiter';
 import {
   buildSearchUrl,
+  detailFromRedirect,
   extractNextData,
   parseDetailPage,
   parseSearchPage,
@@ -67,10 +68,12 @@ export class KijijiSource implements UnitListingSource {
   }
 
   async fetchDetail(listing: TriageListing): Promise<ListingDetail> {
-    const html = await this.limiter.run(() =>
-      fetchText(listing.url, { contactEmail: this.contactEmail, retries: 2 }),
+    const page = await this.limiter.run(() =>
+      fetchPage(listing.url, { contactEmail: this.contactEmail, retries: 2 }),
     );
-    return parseDetailPage(extractNextData(html));
+    // A removed ad is a 200 with a search page behind a redirect; only the URL says so. Asked
+    // before parsing, because the body would parse cleanly and then fail for the wrong reason.
+    return detailFromRedirect(page.url, listing.sourceId) ?? parseDetailPage(extractNextData(page.text));
   }
 }
 

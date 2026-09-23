@@ -206,6 +206,47 @@ function parsePagination(state: Record<string, unknown>): TriagePage['pagination
   };
 }
 
+/**
+ * The status this adapter reports for an advertisement Kijiji has taken down. Not a value Kijiji
+ * itself emits — a removed ad has no `RealEstateListing` entry to carry one — but the pipeline's
+ * rule is "anything other than ACTIVE", and this reads correctly in the log.
+ */
+export const REMOVED_STATUS = 'REMOVED';
+
+/**
+ * What Kijiji does with a removed ad, and the detail that hides it.
+ *
+ * It does not answer 404. It redirects to the category's generic search page, with the ad's own
+ * id appended as `adRemoved=<id>`:
+ *
+ *     https://www.kijiji.ca/b-apartments-condos/city-of-toronto/c37l1700273?…&adRemoved=1733830893
+ *
+ * That page is HTTP 200 and has a perfectly good `__NEXT_DATA__` — of search results, with no
+ * `RealEstateListing` for the ad — so reading the body alone, the re-check failed with "detail
+ * page contained no RealEstateListing entry", counted it as an unreadable page, and after three
+ * such failures retired the ad from re-checking *without* marking it delisted. Every removed
+ * Kijiji ad in the corpus therefore stayed on the list and the map indefinitely: the mechanism
+ * that exists to catch exactly this was being told, three times, that it could not read the ad.
+ *
+ * Only the redirected URL says what happened, which is why the source now asks the fetcher where
+ * the response came from. Returns a REMOVED detail when the redirect names this ad, `null` when
+ * the URL is not a removal redirect at all (so the caller parses the body as usual), and throws
+ * when the redirect names a *different* ad — that is not a case that should be guessed at.
+ */
+export function detailFromRedirect(finalUrl: string, sourceId: string): ListingDetail | null {
+  let removedId: string | null;
+  try {
+    removedId = new URL(finalUrl).searchParams.get('adRemoved');
+  } catch {
+    return null;
+  }
+  if (removedId === null) return null;
+  if (removedId !== sourceId) {
+    throw new KijijiParseError(`redirected with adRemoved=${removedId} while fetching ad ${sourceId}`);
+  }
+  return { descriptionHtml: '', status: REMOVED_STATUS };
+}
+
 /** Detail pages carry the complete advertisement body, plus a lifecycle status. */
 export function parseDetailPage(nextData: unknown): ListingDetail {
   const state = apolloState(nextData);

@@ -41,6 +41,20 @@ export class HttpStatusError extends Error {
   }
 }
 
+/** A response body together with where it actually came from. */
+export interface FetchedPage {
+  text: string;
+  /**
+   * The URL that answered, after redirects. Equal to the one requested when there were none.
+   *
+   * Following redirects silently is right for a CSV that bounces before serving, and wrong for a
+   * Kijiji advertisement: a removed ad answers 200 with a generic search page, and the only
+   * statement that it was removed is in the URL it redirected to. A caller that sees only the
+   * body cannot tell "removed" from "the site changed its markup".
+   */
+  url: string;
+}
+
 /**
  * undici's spec-compliant fetch, which follows redirects — the CKAN resource URL bounces
  * before serving the CSV, so that matters.
@@ -50,6 +64,11 @@ export class HttpStatusError extends Error {
  * thrown immediately so the caller's rate limiter can stop the source properly.
  */
 export async function fetchText(url: string, options: FetchOptions = {}): Promise<string> {
+  return (await fetchPage(url, options)).text;
+}
+
+/** As `fetchText`, and also says which URL answered — see `FetchedPage.url`. */
+export async function fetchPage(url: string, options: FetchOptions = {}): Promise<FetchedPage> {
   const retries = options.retries ?? 3;
   let lastError: unknown;
 
@@ -81,7 +100,7 @@ export async function fetchText(url: string, options: FetchOptions = {}): Promis
         throw new HttpStatusError(res.status, url, await res.text());
       }
 
-      return await res.text();
+      return { text: await res.text(), url: res.url || url };
     } catch (err) {
       if (err instanceof HttpStatusError && err.isRateLimit) throw err;
       // A timeout is our side giving up, not the source refusing us, so it retries like any

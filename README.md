@@ -471,6 +471,17 @@ advertisement is not evidence about the advertisement.
 
 `GET /operations` is what surfaced this. Without it the whole thing reads as a quiet market.
 
+**A removed Kijiji ad is not a 404.** It is a redirect to the category's generic search page with
+the ad's id in the URL — `…/c37l1700273?radius=50.0&…&adRemoved=1733830893` — answered 200, with a
+perfectly valid `__NEXT_DATA__` of search results. Read by body alone, that is "detail page
+contained no RealEstateListing entry": an unreadable page, counted against `missed_sweeps`, and
+after three of them the ad was retired from re-checking without ever being marked delisted. Which
+is how removed ads came to outnumber live ones on the list. The Kijiji adapter now asks the fetcher
+where the response came from and reads `adRemoved` before it reads the body; a redirect naming a
+*different* ad throws rather than guesses. Hydration applies the same rule, so an ad removed
+between the search page and its detail fetch is marked gone instead of being scored on an empty
+body. Migration `0014` puts the already-retired rows back in the queue.
+
 **A paused source alerts once, per source.** Empty cycles look exactly like a quiet market, which
 is the failure most likely to go unnoticed for a week, so a 429 sends a Telegram message and shows
 up as `degraded` on `/health`. The gap between cycles is the backoff: after 20 minutes the
